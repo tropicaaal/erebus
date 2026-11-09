@@ -90,7 +90,7 @@ impl DeviceDispatch {
                     }),
                 ),
                 vkCmdCopyBuffer2: cast_pfn(
-                    vkGetDeviceProcAddr(device, c"vkGetDeviceProcAddr".as_ptr())
+                    vkGetDeviceProcAddr(device, c"vkCmdCopyBuffer2".as_ptr())
                         .or_else(|| vkGetDeviceProcAddr(device, c"vkCmdCopyBuffer2KHR".as_ptr())),
                 ),
             }
