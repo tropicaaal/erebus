@@ -1,10 +1,14 @@
 //! Hooked vulkan functions
 //!
 //! Each is named after the Vulkan function it replaces and calls the next layer's version.
-//! 
+//!
 //! Our goal here is:
-//! - Track all created devices and instances so that device dispatch tables can be cached.
-//! - Track
+//! - Track all created devices and instances.
+//! - Track all allocations on the GPU for devices, VkBuffers bound to those allocations,
+//!   and mappings of allocations to application memory.
+//! - Whenever a VkBuffer gets copied to GPU-local VRAM, intercept that, find out if it's
+//!   mapped to application memory and where, scan that mapping for GPUI primitives, and
+//!   apply the theme to it.
 
 use std::collections::HashMap;
 
@@ -24,15 +28,21 @@ use super::vk::{
     VkLayerInstanceCreateInfo, VkMemoryMapFlags, VkPhysicalDevice, VkResult, VkStructureType,
 };
 
-/// funds the next
+/// instance/device creation functions get passed a linked list of of internal data
+/// in [`VkInstanceCreateInfo`]/[`VkDeviceCreateInfo`] that lets us obtain the next
+/// layer's `vkGetInstanceProcAddr` that we need to fill out dispatch tables in later
+/// hooks.
+///
+/// This function simply searches the linked list for whatever stuff we need specified
+/// by the `filter` callback.
 unsafe fn find_in_pnext<T>(
     mut node: *const core::ffi::c_void,
     sType: VkStructureType,
-    is_link_info: impl Fn(&T) -> bool,
+    filter: impl Fn(&T) -> bool,
 ) -> *mut T {
     while !node.is_null() {
         let base = unsafe { &*(node as *const VkBaseInStructure) };
-        if base.sType == sType && is_link_info(unsafe { &*(node as *const T) }) {
+        if base.sType == sType && filter(unsafe { &*(node as *const T) }) {
             return node as *mut T;
         }
         node = base.pNext as *const core::ffi::c_void;
@@ -50,8 +60,12 @@ pub unsafe extern "system" fn vkCreateInstance(
     pInstance: *mut VkInstance,
 ) -> VkResult {
     unsafe {
-        // aliirght, so main annoying thing here is finding the next layer's vkCreateInstance pointer.
-        // since we aren't working with device handles, this isn't nearly as nice since aren't
+        // aliirght, so main annoying thing here is finding the next layer's vkGetInstanceProcAddr pointer.
+        // since we aren't working with device handles, this isn't nearly as nice since we don't have the
+        // dispatch table stored and such. so, walk pNext for the next layer's `VkLayerInstanceCreateInfo`.
+        //
+        // from there we can access the link info and eventually arrive at our bestie
+        // `pfnNextGetInstanceProcAddr`. yay!
 
         let link_info = find_in_pnext::<VkLayerInstanceCreateInfo>(
             (*pCreateInfo).pNext,
@@ -99,7 +113,8 @@ pub unsafe extern "system" fn vkDestroyInstance(
 ) {
     unsafe {
         with_instance(instance, |instance| {
-            let next_vkDestroyInstance = cast_pfn::<PFN_vkDestroyInstance>((instance.vkGetInstanceProcAddr)(
+            let next_vkDestroyInstance = cast_pfn::<PFN_vkDestroyInstance>((instance
+                .vkGetInstanceProcAddr)(
                 instance.handle,
                 c"vkDestroyInstance".as_ptr(),
             ))
@@ -121,6 +136,10 @@ pub unsafe extern "system" fn vkCreateDevice(
     pDevice: *mut VkDevice,
 ) -> VkResult {
     unsafe {
+        // most of this is the same deal as `vkCreateInstance`, except we use
+        // `pfnNextGetInstanceProcAddr` to build our dispatch table for hooks
+        // to call into the next layer.
+
         let link_info = find_in_pnext::<VkLayerDeviceCreateInfo>(
             (*pCreateInfo).pNext,
             VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO,
@@ -185,7 +204,7 @@ pub unsafe extern "system" fn vkDestroyDevice(
 }
 
 //
-// MARK: Memory map tracking
+// MARK: Memory tracking
 //
 
 pub unsafe extern "system" fn vkMapMemory(

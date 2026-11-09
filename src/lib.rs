@@ -16,6 +16,11 @@ struct ExampleTheme;
 impl Theme for ExampleTheme {
     fn quad(&mut self, quad: &mut Quad) {
         quad.background = Background::solid(Hsla::from_rgba(0, 0, 0, 255));
+        quad.border_color = Hsla::from_rgb(255, 0, 255);
+    }
+
+    fn monochrome_sprite(&mut self, sprite: &mut scene::MonochromeSprite) {
+        sprite.color = Hsla::from_rgb(255, 0, 255);
     }
 
     fn subpixel_sprite(&mut self, sprite: &mut SubpixelSprite) {
