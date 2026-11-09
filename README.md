@@ -21,11 +21,11 @@ Discord has [announced](https://x.com/svishnevskiy/status/2118081920194203799) t
 
 Given the recent surge of interest in the Rust UI ecosystem, I expect that more apps are going to be moving away from Electron, which is going to make these kinds of modifications much harder in the long run. You can't just inject your own code into Rust binaries, since Rust doesn't have a stable ABI (and likely never will). This means that even if you do string together an elaborate client modification for one version of an app, any update could break everything at any time if someone decided to update `rustc`.
 
-So okay, we need a solution that ideally doesn't depend on the Rust ABI.
+*We need a solution that can modify Rust apps without using on the Rust ABI.*
 
 ## How?
 
-The C ABI, of course! C is the lingua franca of programming languages and, [although terrible](https://faultlore.com/blah/c-isnt-a-language/), has had a stable ABI for decades. Several parts of GPUI *must* use the C ABI for various reasons. One of those parts is the [`Scene` system](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/scene.rs)!
+The C ABI, of course! C is the lingua franca of programming languages and, [for better or for worse](https://faultlore.com/blah/c-isnt-a-language/), has had a stable ABI for decades. Some parts of GPUI need to use the C ABI for various reasons. One of those parts is the [`Scene` system](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/scene.rs).
 
 In GPUI, a `Scene` is a complete plan for how to render a given frame of the application. It is built after the element tree has been evaluated right before data is uploaded to the GPU. And... that data uses the C ABI, because it has to when passing stuff to the GPU.
 
