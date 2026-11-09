@@ -15,7 +15,7 @@ use std::{
     sync::{LazyLock, Mutex, MutexGuard, PoisonError},
 };
 
-use crate::{scene, theme};
+use crate::{ExampleTheme, scene};
 
 use fxhash::FxHashMap;
 use vk::{
@@ -27,8 +27,8 @@ use vk::{
     VkMappedMemoryRange, VkNegotiateLayerInterface, VkResult,
 };
 
-/// Staging uploads larger than this are never quad batches; skip them without looking.
-const MAX_QUAD_UPLOAD_BYTES: VkDeviceSize = 64 << 20;
+/// staging uploads larger than this are never primitive batches
+const MAX_PRIMITIVE_UPLOAD_BYTES: VkDeviceSize = 64 << 20;
 
 /// What the loader's layer chain gave us for one `VkInstance`.
 struct Instance {
@@ -128,7 +128,7 @@ impl Device {
         offset: VkDeviceSize,
         size: VkDeviceSize,
     ) {
-        if size == 0 || size > MAX_QUAD_UPLOAD_BYTES {
+        if size == 0 || size > MAX_PRIMITIVE_UPLOAD_BYTES {
             return;
         }
 
@@ -157,21 +157,14 @@ impl Device {
             (mapping.addr as u64 + (memory_offset - mapping.offset)) as *mut u8
         };
 
-        // now we try and parse the memory as quads
+        // now we try and identify the memory as an array of one of GPUI's primitives
+        // and run the theme over every element.
         let bytes = unsafe { std::slice::from_raw_parts_mut(mapped_addr, size as usize) };
-        let Some(quads) = scene::quads_from_bytes_mut(bytes) else {
+        let Some(changed) = scene::apply_theme(bytes, &mut ExampleTheme {}) else {
             return;
         };
 
-        // apply theme function to every quad
-        let mut changed = false;
-        for quad in quads {
-            let before = *quad;
-            theme(quad);
-            changed |= *quad != before;
-        }
-
-        // make the change visible to the GPU
+        // make the change visible to the GPU if the theme modified any bytes
         if changed && mapping.offset == 0 {
             unsafe {
                 (self.dispatch.vkFlushMappedMemoryRanges)(
