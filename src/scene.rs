@@ -1,4 +1,16 @@
 //! GPUI Scene Primitives
+//!
+//! This module re-creates most `#[repr(C)]` primitive structs and subtypes from
+//! <https://github.com/zed-industries/zed/blob/main/crates/gpui/src/scene.rs>.
+//! 
+//! Every type here must exactly match the layout of GPUI's struct layouts.
+
+// Portions of this file are derived from the zed editor.
+//
+// Copyright 2022 - 2025 Zed Industries, Inc, which is licensed under the
+// Apache License, Version 2.0.
+//
+// <https://github.com/zed-industries/zed/blob/main/LICENSE-APACHE>
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
