@@ -1,0 +1,13 @@
+[package]
+name = "gpui-theme-vk"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 2
+
+[dependencies]
+fxhash = "0.2.1"
