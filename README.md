@@ -47,12 +47,16 @@ pub struct Quad {
 
 The rust crate in this repo is a [Vulkan Layer](https://docs.vulkan.org/guide/latest/layers.html), which is a small shared object that hooks functions exposed by the Vulkan API. It keeps track of all allocations that GPUI makes through Vulkan and intercepts `vkCmdCopyBuffer` and `vkCmdCopyBuffer2` to access these drawing primitives and modify them right before they reach the GPU.
 
-This effectively makes a "theme" a function that runs over every drawing primitive, makes the necessary modifications, then returns. Pretty cool!
+This effectively makes a "theme" a visitor that runs over every drawing primitive, makes the necessary modifications, then returns. Pretty cool!
 
 ```rs
-// example theme that turns everything black
-fn theme(quad: &mut Quad) {
-    quad.background = Background::solid(Hsla::from_rgba(0, 0, 0, 255));
+// example theme that turns every quad black
+struct ExampleTheme;
+
+impl Theme for ExampleTheme {
+    fn quad(&mut self, quad: &mut Quad) {
+        quad.background = Background::solid(Hsla::from_rgba(0, 0, 0, 255));
+    }
 }
 ```
 
