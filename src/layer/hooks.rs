@@ -4,29 +4,126 @@
 //!
 //! Our goal here is:
 //! - Track all created devices and instances.
-//! - Track all allocations on the GPU for devices, VkBuffers bound to those allocations,
-//!   and mappings of allocations to application memory.
+//! - Track which VkBuffers are bound to which device memory, and which device memory
+//!   is mapped to application memory.
 //! - Whenever a VkBuffer gets copied to GPU-local VRAM, intercept that, find out if it's
 //!   mapped to application memory and where, scan that mapping for GPUI primitives, and
 //!   apply the theme to it.
 
-use std::collections::HashMap;
+use std::ffi::CStr;
+use std::mem::transmute;
 
-use crate::layer::{cast_pfn, with_instance};
+use crate::ExampleTheme;
+use crate::layer::vk::{PFN_vkVoidFunction, VkNegotiateLayerInterface};
 
 use super::{
-    BufferBinding, Device, DeviceDispatch, DispatchKey, Instance, MappedMemory, state, with_device,
+    BufferBinding, Device, DeviceDispatch, DispatchKey, Instance, MappedMemory, cast_pfn,
+    devices_mut, instances, instances_mut,
 };
 
 use super::vk::{
     PFN_vkCreateDevice, PFN_vkCreateInstance, PFN_vkDestroyInstance,
     VK_ERROR_INITIALIZATION_FAILED, VK_LAYER_LINK_INFO,
     VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO, VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO,
-    VK_SUCCESS, VkAllocationCallbacks, VkBaseInStructure, VkBindBufferMemoryInfo, VkBuffer,
-    VkBufferCopy, VkCommandBuffer, VkCopyBufferInfo2, VkDevice, VkDeviceCreateInfo, VkDeviceMemory,
-    VkDeviceSize, VkInstance, VkInstanceCreateInfo, VkLayerDeviceCreateInfo,
+    VK_SUCCESS, VK_WHOLE_SIZE, VkAllocationCallbacks, VkBaseInStructure, VkBindBufferMemoryInfo,
+    VkBuffer, VkBufferCopy, VkCommandBuffer, VkCopyBufferInfo2, VkDevice, VkDeviceCreateInfo,
+    VkDeviceMemory, VkDeviceSize, VkInstance, VkInstanceCreateInfo, VkLayerDeviceCreateInfo,
     VkLayerInstanceCreateInfo, VkMemoryMapFlags, VkPhysicalDevice, VkResult, VkStructureType,
 };
+
+//
+// MARK: Layer entrypoint
+//
+
+/// this is the first thing that vulkan will call when loading our
+/// layer, where the loader version is negotiated and we either proceed
+/// or don't based on that.
+///
+/// From there, we pass it our own pointers to [`vkGetInstanceProcAddr`] and
+/// [`vkGetDeviceProcAddr`] which will allow hooking further functions
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn vkNegotiateLoaderLayerInterfaceVersion(
+    pVersionStruct: *mut VkNegotiateLayerInterface,
+) -> VkResult {
+    if pVersionStruct.is_null() {
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+
+    let negotiate = unsafe { &mut *pVersionStruct };
+
+    // version 1 uses JSON which is some bullshit
+    negotiate.loaderLayerInterfaceVersion = negotiate.loaderLayerInterfaceVersion.min(2);
+    negotiate.pfnGetInstanceProcAddr = Some(vkGetInstanceProcAddr);
+    negotiate.pfnGetDeviceProcAddr = Some(vkGetDeviceProcAddr);
+    negotiate.pfnGetPhysicalDeviceProcAddr = None; // nothing here matters for our purposes
+
+    VK_SUCCESS
+}
+
+/// this is how vulkan loaders get access to their function pointers,
+/// along with [`vkGetDeviceProcAddr`] and `vkGetPhysicalDeviceProcAddr`.
+///
+/// this specific function can be used for retrieving all vulkan commands,
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn vkGetInstanceProcAddr(
+    instance: VkInstance,
+    pName: *const core::ffi::c_char,
+) -> PFN_vkVoidFunction {
+    let hooked: PFN_vkVoidFunction = match unsafe { CStr::from_ptr(pName) }.to_bytes() {
+        b"vkGetInstanceProcAddr" => Some(unsafe { transmute(vkGetInstanceProcAddr as *const ()) }),
+        b"vkGetDeviceProcAddr" => Some(unsafe { transmute(vkGetDeviceProcAddr as *const ()) }),
+        b"vkCreateInstance" => Some(unsafe { transmute(vkCreateInstance as *const ()) }),
+        b"vkDestroyInstance" => Some(unsafe { transmute(vkDestroyInstance as *const ()) }),
+        b"vkCreateDevice" => Some(unsafe { transmute(vkCreateDevice as *const ()) }),
+        _ => None,
+    };
+
+    if hooked.is_some() || instance.is_null() {
+        return hooked;
+    }
+
+    let next_vkGetInstanceProcAddr =
+        unsafe { Instance::try_from_handle(instance) }?.vkGetInstanceProcAddr;
+
+    unsafe { next_vkGetInstanceProcAddr(instance, pName) }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn vkGetDeviceProcAddr(
+    device: VkDevice,
+    pName: *const core::ffi::c_char,
+) -> PFN_vkVoidFunction {
+    let dispatch = unsafe { DeviceDispatch::try_from_handle(device) }?;
+
+    // Only intercept what the next layer actually provides.
+    let hooked: PFN_vkVoidFunction = unsafe {
+        match CStr::from_ptr(pName).to_bytes() {
+            b"vkGetDeviceProcAddr" => Some(transmute(vkGetDeviceProcAddr as *const ())),
+            b"vkDestroyDevice" => Some(transmute(vkDestroyDevice as *const ())),
+            b"vkMapMemory" => Some(transmute(vkMapMemory as *const ())),
+            b"vkUnmapMemory" => Some(transmute(vkUnmapMemory as *const ())),
+            b"vkFreeMemory" => Some(transmute(vkFreeMemory as *const ())),
+            b"vkBindBufferMemory" => Some(transmute(vkBindBufferMemory as *const ())),
+            b"vkDestroyBuffer" => Some(transmute(vkDestroyBuffer as *const ())),
+            b"vkCmdCopyBuffer" => Some(transmute(vkCmdCopyBuffer as *const ())),
+            b"vkBindBufferMemory2" | b"vkBindBufferMemory2KHR"
+                if dispatch.vkBindBufferMemory2.is_some() =>
+            {
+                Some(transmute(vkBindBufferMemory2 as *const ()))
+            }
+            b"vkCmdCopyBuffer2" | b"vkCmdCopyBuffer2KHR" if dispatch.vkCmdCopyBuffer2.is_some() => {
+                Some(transmute(vkCmdCopyBuffer2 as *const ()))
+            }
+            _ => None,
+        }
+    };
+
+    hooked.or_else(|| unsafe { (dispatch.vkGetDeviceProcAddr)(device, pName) })
+}
+
+//
+// MARK: Device/instance tracking
+//
 
 /// instance/device creation functions get passed a linked list of of internal data
 /// in [`VkInstanceCreateInfo`]/[`VkDeviceCreateInfo`] that lets us obtain the next
@@ -47,12 +144,9 @@ unsafe fn find_in_pnext<T>(
         }
         node = base.pNext as *const core::ffi::c_void;
     }
+
     core::ptr::null_mut()
 }
-
-//
-// MARK: Device/instance tracking
-//
 
 pub unsafe extern "system" fn vkCreateInstance(
     pCreateInfo: *const VkInstanceCreateInfo,
@@ -94,7 +188,7 @@ pub unsafe extern "system" fn vkCreateInstance(
         if result == VK_SUCCESS {
             let instance = *pInstance;
 
-            state().instances.insert(
+            instances_mut().insert(
                 DispatchKey::from_raw_handle(instance),
                 Instance {
                     handle: instance,
@@ -112,20 +206,21 @@ pub unsafe extern "system" fn vkDestroyInstance(
     pAllocator: *const VkAllocationCallbacks,
 ) {
     unsafe {
-        with_instance(instance, |instance| {
-            let next_vkDestroyInstance = cast_pfn::<PFN_vkDestroyInstance>((instance
-                .vkGetInstanceProcAddr)(
-                instance.handle,
-                c"vkDestroyInstance".as_ptr(),
-            ))
-            .unwrap();
+        // note that we want to remove from the instance registry before
+        // calling next_vkDestroyInstance, since we could race condition
+        // and have a new instance made with the same dispatch key.
+        let Some(removed) = instances_mut().remove(&DispatchKey::from_raw_handle(instance)) else {
+            return;
+        };
 
-            next_vkDestroyInstance(instance.handle, pAllocator)
-        });
+        let next_vkDestroyInstance = cast_pfn::<PFN_vkDestroyInstance>((removed
+            .vkGetInstanceProcAddr)(
+            removed.handle,
+            c"vkDestroyInstance".as_ptr(),
+        ))
+        .unwrap();
 
-        state()
-            .instances
-            .remove(&DispatchKey::from_raw_handle(instance));
+        next_vkDestroyInstance(removed.handle, pAllocator)
     }
 }
 
@@ -146,11 +241,9 @@ pub unsafe extern "system" fn vkCreateDevice(
             |info| info.function == VK_LAYER_LINK_INFO,
         );
 
-        // A physical device shares its instance's dispatch key.
-        let instance = state()
-            .instances
+        let instance = instances()
             .get(&DispatchKey::from_raw_handle(physicalDevice))
-            .map(|instance| instance.handle as VkInstance);
+            .map(|instance| instance.handle);
 
         let (false, Some(instance)) = (link_info.is_null(), instance) else {
             return VK_ERROR_INITIALIZATION_FAILED;
@@ -174,13 +267,12 @@ pub unsafe extern "system" fn vkCreateDevice(
             let device = *pDevice;
             let dispatch = DeviceDispatch::load(next_vkGetDeviceProcAddr, device);
 
-            state().devices.insert(
+            devices_mut().insert(
                 DispatchKey::from_raw_handle(device),
                 Device {
                     handle: device,
                     dispatch,
-                    mapped: HashMap::new(),
-                    bound: HashMap::new(),
+                    tracked: Default::default(),
                 },
             );
         }
@@ -194,12 +286,12 @@ pub unsafe extern "system" fn vkDestroyDevice(
     pAllocator: *const VkAllocationCallbacks,
 ) {
     unsafe {
-        let key = DispatchKey::from_raw_handle(device);
-        let next = with_device(device, |device| device.dispatch);
+        // see the comment in vkDestroyInstance. same applies here
+        let Some(removed) = devices_mut().remove(&DispatchKey::from_raw_handle(device)) else {
+            return;
+        };
 
-        (next.vkDestroyDevice)(device, pAllocator);
-
-        state().devices.remove(&key);
+        (removed.dispatch.vkDestroyDevice)(device, pAllocator);
     }
 }
 
@@ -216,17 +308,21 @@ pub unsafe extern "system" fn vkMapMemory(
     ppData: *mut *mut core::ffi::c_void,
 ) -> VkResult {
     unsafe {
-        with_device(device, |device| {
+        Device::with(device, |device| {
             let result =
                 (device.dispatch.vkMapMemory)(device.handle, memory, offset, size, flags, ppData);
 
             if result == VK_SUCCESS {
-                device.mapped.insert(
+                device.tracked().mapped.insert(
                     memory,
                     MappedMemory {
-                        addr: *ppData as usize,
+                        addr: *ppData,
                         offset,
-                        size,
+                        end: if size == VK_WHOLE_SIZE {
+                            VK_WHOLE_SIZE
+                        } else {
+                            offset.saturating_add(size)
+                        },
                     },
                 );
             }
@@ -237,13 +333,14 @@ pub unsafe extern "system" fn vkMapMemory(
 }
 
 pub unsafe extern "system" fn vkUnmapMemory(device: VkDevice, memory: VkDeviceMemory) {
-    let next = unsafe {
-        with_device(device, |device| {
-            device.mapped.remove(&memory);
-            device.dispatch
+    let next_vkUnmapMemory = unsafe {
+        Device::with(device, |device| {
+            device.tracked().mapped.remove(&memory);
+            device.dispatch.vkUnmapMemory
         })
     };
-    unsafe { (next.vkUnmapMemory)(device, memory) }
+
+    unsafe { next_vkUnmapMemory(device, memory) }
 }
 
 pub unsafe extern "system" fn vkFreeMemory(
@@ -251,14 +348,15 @@ pub unsafe extern "system" fn vkFreeMemory(
     memory: VkDeviceMemory,
     pAllocator: *const VkAllocationCallbacks,
 ) {
-    let next = unsafe {
-        with_device(device, |device| {
-            device.mapped.remove(&memory);
-            device.bound.retain(|_, binding| binding.memory != memory);
-            device.dispatch
+    let next_vkFreeMemory = unsafe {
+        Device::with(device, |device| {
+            // freeing mapped memory implicitly unmaps it
+            device.tracked().mapped.remove(&memory);
+            device.dispatch.vkFreeMemory
         })
     };
-    unsafe { (next.vkFreeMemory)(device, memory, pAllocator) }
+
+    unsafe { next_vkFreeMemory(device, memory, pAllocator) }
 }
 
 pub unsafe extern "system" fn vkBindBufferMemory(
@@ -268,12 +366,12 @@ pub unsafe extern "system" fn vkBindBufferMemory(
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
     unsafe {
-        with_device(device, |device| {
+        Device::with(device, |device| {
             let result =
                 (device.dispatch.vkBindBufferMemory)(device.handle, buffer, memory, memoryOffset);
 
             if result == VK_SUCCESS {
-                device.bound.insert(
+                device.tracked().bound.insert(
                     buffer,
                     BufferBinding {
                         memory,
@@ -293,7 +391,7 @@ pub unsafe extern "system" fn vkBindBufferMemory2(
     pBindInfos: *const VkBindBufferMemoryInfo,
 ) -> VkResult {
     unsafe {
-        with_device(device, |device| {
+        Device::with(device, |device| {
             let result = (device.dispatch.vkBindBufferMemory2.unwrap())(
                 device.handle,
                 bindInfoCount,
@@ -301,9 +399,10 @@ pub unsafe extern "system" fn vkBindBufferMemory2(
             );
 
             // update bindings if successful
-            if result == VK_SUCCESS {
+            if result == VK_SUCCESS && bindInfoCount > 0 {
+                let mut tracked = device.tracked();
                 for info in std::slice::from_raw_parts(pBindInfos, bindInfoCount as usize) {
-                    device.bound.insert(
+                    tracked.bound.insert(
                         info.buffer,
                         BufferBinding {
                             memory: info.memory,
@@ -323,13 +422,14 @@ pub unsafe extern "system" fn vkDestroyBuffer(
     buffer: VkBuffer,
     pAllocator: *const VkAllocationCallbacks,
 ) {
-    let next = unsafe {
-        with_device(device, |device| {
-            device.bound.remove(&buffer);
-            device.dispatch
+    let next_vkDestroyBuffer = unsafe {
+        Device::with(device, |device| {
+            device.tracked().bound.remove(&buffer);
+            device.dispatch.vkDestroyBuffer
         })
     };
-    unsafe { (next.vkDestroyBuffer)(device, buffer, pAllocator) }
+
+    unsafe { next_vkDestroyBuffer(device, buffer, pAllocator) }
 }
 
 //
@@ -350,16 +450,22 @@ pub unsafe extern "system" fn vkCmdCopyBuffer(
     regionCount: u32,
     pRegions: *const VkBufferCopy,
 ) {
-    let regions = unsafe { std::slice::from_raw_parts(pRegions, regionCount as usize) };
-    let next = unsafe {
-        with_device(commandBuffer, |device| {
-            for region in regions {
-                device.apply_theme_to_buffer(srcBuffer, region.srcOffset, region.size);
+    let next_vkCmdCopyBuffer = unsafe {
+        Device::with(commandBuffer, |device| {
+            if regionCount > 0 {
+                let regions = std::slice::from_raw_parts(pRegions, regionCount as usize);
+
+                device.apply_theme_to_regions(
+                    &mut ExampleTheme {},
+                    srcBuffer,
+                    regions.iter().map(|region| (region.srcOffset, region.size)),
+                );
             }
-            device.dispatch
+            device.dispatch.vkCmdCopyBuffer
         })
     };
-    unsafe { (next.vkCmdCopyBuffer)(commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions) }
+
+    unsafe { next_vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions) }
 }
 
 pub unsafe extern "system" fn vkCmdCopyBuffer2(
@@ -368,19 +474,21 @@ pub unsafe extern "system" fn vkCmdCopyBuffer2(
 ) {
     unsafe {
         let info = &*pCopyBufferInfo;
-        let regions = std::slice::from_raw_parts(info.pRegions, info.regionCount as usize);
 
-        let next = with_device(commandBuffer, |device| {
-            for region in regions {
-                device.apply_theme_to_buffer(info.srcBuffer, region.srcOffset, region.size);
+        let next_vkCmdCopyBuffer2 = Device::with(commandBuffer, |device| {
+            if info.regionCount > 0 {
+                let regions = std::slice::from_raw_parts(info.pRegions, info.regionCount as usize);
+                device.apply_theme_to_regions(
+                    &mut ExampleTheme {},
+                    info.srcBuffer,
+                    regions.iter().map(|region| (region.srcOffset, region.size)),
+                );
             }
-
-            device.dispatch
+            device
+                .dispatch
+                .vkCmdCopyBuffer2
+                .expect("hooked without being available")
         });
-
-        let next_vkCmdCopyBuffer2 = next
-            .vkCmdCopyBuffer2
-            .expect("hooked without being available");
 
         next_vkCmdCopyBuffer2(commandBuffer, pCopyBufferInfo)
     }
