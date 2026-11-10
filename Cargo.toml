@@ -1,3 +1,6 @@
 [workspace]
 members = ["packages/*"]
 resolver = "2"
+
+[workspace.dependencies]
+erebus-core = { path = "./packages/erebus-core", version = "0.1.0" }

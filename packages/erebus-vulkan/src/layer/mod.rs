@@ -14,7 +14,7 @@ use std::{
     sync::{LazyLock, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use crate::{scene, theme::Theme};
+use erebus_core::{scene, theme::Theme};
 
 use fxhash::FxHashMap;
 use vk::{
