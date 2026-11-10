@@ -11,7 +11,7 @@ This is a proof-of-concept for a theme engine that can style Rust GPUI applicati
 Make sure you have [Rust](https://rustup.rs/) installed. The example below injects into `zed` and should color everything black. You should be able to exchange `zed` for any GPUI app and get the same result.
 
 ```sh
-cargo build --release
+cargo build -p erebus-vulkan --release
 VK_LAYER_PATH=. VK_INSTANCE_LAYERS=VK_LAYER_erebus zed
 ```
 
