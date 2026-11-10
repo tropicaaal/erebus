@@ -1,0 +1,10 @@
+[package]
+name = "erebus-vulkan"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+fxhash = "0.2.1"

@@ -1,6 +1,6 @@
 # erebus
 
-This is a proof-of-concept for a theme engine that can style Rust GPUI applications *after compilation* in a (somewhat) non-intrusive and stable way.
+This is a proof-of-concept for a theme engine that can style Rust GPUI applications *after compilation* in a (somewhat) non-intrusive and stable way. It accomplishs this by hooking low-level graphics APIs.
 
 ## Try it
 

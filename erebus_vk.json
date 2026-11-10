@@ -3,7 +3,7 @@
   "layer": {
     "name": "VK_LAYER_erebus",
     "type": "GLOBAL",
-    "library_path": "./target/release/liberebus.so",
+    "library_path": "./target/release/liberebus_vulkan.so",
     "api_version": "1.3.0",
     "implementation_version": "1",
     "description": "Theme engine for GPUI applications",
