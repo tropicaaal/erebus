@@ -1,19 +1,10 @@
 # erebus
 
-This is a proof-of-concept for a theme engine that can style Rust GPUI applications *after compilation* in a (somewhat) non-intrusive and stable way. It accomplishs this by hooking low-level graphics APIs.
-
-## Try it
+erebus is a proof-of-concept for a theme engine that can style Rust GPUI applications *after compilation* in a non-intrusive and stable [(albeit limited)](#caveats) fashion. It does this by hooking low-level graphics APIs used by GPUI's renderer like Vulkan and D3D11.
 
 <p align="center">
     <img src="./assets/demo.png" width="480" />
 </p>
-
-Make sure you have [Rust](https://rustup.rs/) installed. The example below injects into `zed` and should color everything black. You should be able to exchange `zed` for any GPUI app and get the same result.
-
-```sh
-cargo build -p erebus-vulkan --release
-VK_LAYER_PATH=. VK_INSTANCE_LAYERS=VK_LAYER_erebus zed
-```
 
 ## Why?
 
@@ -62,6 +53,15 @@ impl Theme for ExampleTheme {
         sprite.color = Hsla::from_rgb(255, 0, 255);
     }
 }
+```
+
+## Try It
+
+Make sure you have [Rust](https://rustup.rs/) installed. The example below injects into `zed` and should color everything black. You should be able to exchange `zed` for any GPUI app and get the same result.
+
+```sh
+cargo build -p erebus-vulkan --release
+VK_LAYER_PATH=. VK_INSTANCE_LAYERS=VK_LAYER_erebus zed
 ```
 
 ## Caveats
