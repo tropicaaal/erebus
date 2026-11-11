@@ -162,28 +162,28 @@ unsafe extern "system" fn Unmap(this: *mut c_void, resource: *mut c_void, subres
 /// path vertex data, staging readbacks, ...) goes straight to the driver.
 unsafe fn primitive_buffer_layout(resource: *mut c_void) -> Option<(usize, usize)> {
     unsafe {
-        let get_type: unsafe extern "system" fn(*mut c_void, *mut u32) =
+        let GetType: unsafe extern "system" fn(*mut c_void, *mut u32) =
             transmute(vtable::entry(resource, VT_RES_GET_TYPE));
         let mut dimension = 0;
-        get_type(resource, &mut dimension);
+        GetType(resource, &mut dimension);
         if dimension != D3D11_RESOURCE_DIMENSION_BUFFER {
             return None;
         }
 
-        let get_desc: unsafe extern "system" fn(*mut c_void, *mut D3D11_BUFFER_DESC) =
+        let GetDesc: unsafe extern "system" fn(*mut c_void, *mut D3D11_BUFFER_DESC) =
             transmute(vtable::entry(resource, VT_BUFFER_GET_DESC));
         let mut desc: D3D11_BUFFER_DESC = std::mem::zeroed();
-        get_desc(resource, &mut desc);
+        GetDesc(resource, &mut desc);
 
         let stride = desc.StructureByteStride as usize;
-        let ok = desc.Usage == D3D11_USAGE_DYNAMIC
+
+        (desc.Usage == D3D11_USAGE_DYNAMIC
             && desc.BindFlags & D3D11_BIND_SHADER_RESOURCE != 0
             && desc.CPUAccessFlags & D3D11_CPU_ACCESS_WRITE != 0
             && desc.MiscFlags & D3D11_RESOURCE_MISC_BUFFER_STRUCTURED != 0
             && desc.ByteWidth <= ShadowBuf::MAX_LEN
             && is_primitive_stride(stride)
-            && desc.ByteWidth as usize % stride == 0;
-
-        ok.then_some((desc.ByteWidth as usize, stride))
+            && desc.ByteWidth as usize % stride == 0)
+            .then_some((desc.ByteWidth as usize, stride))
     }
 }
