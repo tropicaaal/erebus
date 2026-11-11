@@ -67,7 +67,10 @@ impl Theme for ExampleTheme {
 
 ### Linux
 
-You will need a graphics card that supports Vulkan. The example below injects into `zed` and should color everything black. You should be able to exchange `zed` for any GPUI app and get the same result.
+> [!IMPORTANT]
+> You will need a graphics card that supports Vulkan, otherwise `wgpu` will fallback to its OpenGL backend and erebus won't work.
+
+The example below injects into `zed` and should color everything black. You should be able to exchange `zed` for any GPUI app and get the same result.
 
 ```sh
 cargo build -p erebus-vulkan --release
