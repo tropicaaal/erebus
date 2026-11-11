@@ -8,7 +8,7 @@ erebus is a proof-of-concept for a theme engine that can style Rust GPUI applica
 
 ## Why?
 
-Discord has [announced](https://x.com/svishnevskiy/status/2118081920194203799) that they are switching away from using [Electron](https://www.electronjs.org/) in their desktop client in favor of [GPUI](https://gpui.rs). This is a great net improvement for end-users, but it does pretty much kill the client modding scene, where users would modify Discord's JavaScript and CSS to load custom themes and plugins.
+Discord has [announced](https://x.com/svishnevskiy/status/2118081920194203799) that they are switching away from using [Electron](https://www.electronjs.org/) in their desktop client in favor of [GPUI](https://gpui.rs). This is a great net improvement for end-users, but it does pretty much kill the client modding scene, where people would modify Discord's JavaScript and CSS to load custom themes and plugins.
 
 Given the recent surge of interest in the Rust UI ecosystem, I expect that more apps are going to be moving away from Electron, which is going to make these kinds of modifications much harder in the long run. You can't just inject your own code into Rust binaries, since Rust doesn't have a stable ABI (and likely never will). This means that even if you do string together an elaborate client modification for one version of an app, any update could break everything at any time if someone decided to bump `rustc`.
 
