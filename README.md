@@ -94,6 +94,4 @@ This will generate a `d3d11.dll` file in `target/release/`, which you should als
 
 ## Caveats
 
-GPUI uses a different rendering backend on each platform and will only ever use Vulkan on linux via `wgpu` if the system supports it. Unfortunately, this means that this method **only works on linux devices supporting Vulkan**. This doesn't mean that something similar can't be adapted for other platforms, either by also hooking lowlevel graphics APIs, or by locating `Scene` in memory through other means (DWARF debuginfo, `std::panic::Location` instances in rodata, etc...) This *can* be generalized to other platforms, it just needs a different injection method for each.
-
 Additionally, because themes operate on drawing primitives after the element tree has been evaluated, we don't get any semantic meaning to what we're themeing. This is distinctly different from something like CSS. There are no selectors, you're just modifying a list of paint operations. You can tell if a box being rendered is blue or red, but you can't tell if it's a button or a checkbox. This is a fundamental limitation of this system (and GPUI as a whole; it has no concept of a selector). I don't have a solution for this, and I don't think there is one without touching the Rust ABI.
