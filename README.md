@@ -36,7 +36,15 @@ pub struct Quad {
 }
 ```
 
-The rust crate in this repo is a [Vulkan Layer](https://docs.vulkan.org/guide/latest/layers.html), which is a small shared object that hooks functions exposed by the Vulkan API. It keeps track of all allocations that GPUI makes through Vulkan and intercepts `vkCmdCopyBuffer` and `vkCmdCopyBuffer2` to access these drawing primitives and modify them right before they reach the GPU.
+When a GPUI `Renderer` implementation needs to send off these scene primitives to the GPU, it places them in a *memory-mapped buffer*, which is a chunk of VRAM mapped to the address space of the CPU. Doing this process involves calling down to a lower-level graphics API. On Linux, this is done through the `wgpu` crate, which will eventually call Vulkan's `vkCmdCopyBuffer` function. On Windows, they use Direct3D 11 which has this happen in `ID3D11DeviceContext::Unmap`.
+
+erebus intercepts these low-level graphics APIs and passes these `Scene` primitives to themes to modify before they reach the GPU. On Linux this is handled via a [Vulkan Layer](https://docs.vulkan.org/guide/latest/layers.html) (a small shared object that hooks functions exposed by the Vulkan API). On Windows, we use a technique [DLL Hijacking](https://www.upguard.com/blog/dll-hijacking) to load our own `d3d11.dll` inside of the app.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/diagram-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/diagram-light.png">
+  <img alt="Diagram showing the process that erebus intercepts calls from a graphcis API. From left to right: GPUI's Renderer implementation, Graphics API, Erebus, GPU" src="assets/diagram-light.png">
+</picture>
 
 This effectively makes a "theme" a visitor that runs over every drawing primitive, makes the necessary modifications, then returns. Pretty cool!
 
@@ -57,12 +65,29 @@ impl Theme for ExampleTheme {
 
 ## Try It
 
-Make sure you have [Rust](https://rustup.rs/) installed. The example below injects into `zed` and should color everything black. You should be able to exchange `zed` for any GPUI app and get the same result.
+### Linux
+
+You will need a graphics card that supports Vulkan. The example below injects into `zed` and should color everything black. You should be able to exchange `zed` for any GPUI app and get the same result.
 
 ```sh
 cargo build -p erebus-vulkan --release
 VK_LAYER_PATH=. VK_INSTANCE_LAYERS=VK_LAYER_erebus zed
 ```
+
+### Windows
+
+> [!IMPORTANT]
+> You will need an installation of [MSVC build tools](https://learn.microsoft.com/en-us/cpp/overview/acquire-msvc?view=msvc-170) in your `Path` environment variable to build erebus for Windows, since we do some DLL shenanigans in the postbuild.
+
+First, make a copy of `C:\Windows\System32\d3d11.dll` named `d3d11_orig.dll` and place it in the same folder as the executable you want to inject into.
+
+After that, build erebus with this command:
+
+```sh
+cargo build -p erebus-vulkan --release
+```
+
+This will generate a `d3d11.dll` file in `target/release/`, which you should also move to the same folder as your executable. Your final folder layout should contain your executable, `d3d11_orig.dll`, and the `d3d11.dll` that erebus built. You can then launch the executable.
 
 ## Caveats
 
