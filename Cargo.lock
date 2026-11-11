@@ -17,6 +17,7 @@ name = "erebus-d3d11"
 version = "0.1.0"
 dependencies = [
  "erebus-core",
+ "fxhash",
  "goblin",
  "windows-sys",
 ]

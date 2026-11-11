@@ -17,6 +17,7 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_SystemInformation",
     "Win32_UI_WindowsAndMessaging",
 ] }
+fxhash = "0.2.1"
 
 [build-dependencies]
 goblin = "0.9"

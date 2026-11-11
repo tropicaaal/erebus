@@ -2,12 +2,19 @@
 #![allow(non_snake_case)]
 
 pub mod d3d11;
+pub mod hooks;
+pub mod shadow;
+pub mod vtable;
 
 use std::{
     ffi::{CStr, c_void},
     sync::OnceLock,
 };
 
+use erebus_core::{
+    scene::{Background, Hsla, MonochromeSprite, Quad, SubpixelSprite},
+    theme::Theme,
+};
 use windows_sys::{
     Win32::{
         Foundation::{E_FAIL, FARPROC, HMODULE},
@@ -15,10 +22,27 @@ use windows_sys::{
             LibraryLoader::{GetProcAddress, LoadLibraryW},
             SystemInformation::GetSystemDirectoryW,
         },
-        UI::WindowsAndMessaging::{MB_ICONINFORMATION, MB_OK, MessageBoxW},
     },
     core::HRESULT,
 };
+
+// example theme that turns every quad black and all text magenta
+struct ExampleTheme;
+
+impl Theme for ExampleTheme {
+    fn quad(&mut self, quad: &mut Quad) {
+        quad.background = Background::solid(Hsla::from_rgba(0, 0, 0, 255));
+        quad.border_color = erebus_core::scene::Hsla::from_rgb(255, 0, 255);
+    }
+
+    fn monochrome_sprite(&mut self, sprite: &mut MonochromeSprite) {
+        sprite.color = Hsla::from_rgb(255, 0, 255);
+    }
+
+    fn subpixel_sprite(&mut self, sprite: &mut SubpixelSprite) {
+        sprite.color = Hsla::from_rgb(255, 0, 255);
+    }
+}
 
 /// stores HMODULE cast to usize because rust doesn't like raw pointers in statics
 static ORIGINAL_D3D11: OnceLock<usize> = OnceLock::new();
@@ -68,19 +92,7 @@ pub unsafe extern "system" fn D3D11CreateDevice(
     let orig_D3D11CreateDevice: d3d11::PFN_D3D11_CREATE_DEVICE =
         unsafe { std::mem::transmute(proc) };
 
-    let text: Vec<u16> = "meow\0".encode_utf16().collect();
-    let caption: Vec<u16> = "meow\0".encode_utf16().collect();
-
-    unsafe {
-        MessageBoxW(
-            std::ptr::null_mut(),
-            text.as_ptr(),
-            caption.as_ptr(),
-            MB_OK | MB_ICONINFORMATION,
-        );
-    }
-
-    unsafe {
+    let result = unsafe {
         orig_D3D11CreateDevice(
             pAdapter,
             DriverType,
@@ -93,7 +105,24 @@ pub unsafe extern "system" fn D3D11CreateDevice(
             pFeatureLevel,
             ppImmediateContext,
         )
+    };
+
+    if result >= 0 {
+        unsafe {
+            let device = if ppDevice.is_null() {
+                std::ptr::null_mut()
+            } else {
+                *ppDevice
+            };
+            let context = if ppImmediateContext.is_null() {
+                std::ptr::null_mut()
+            } else {
+                *ppImmediateContext
+            };
+            hooks::device_create(device, context);
+        };
     }
+    result
 }
 
 #[unsafe(no_mangle)]
@@ -118,7 +147,7 @@ pub unsafe extern "system" fn D3D11CreateDeviceAndSwapChain(
     let orig_D3D11CreateDeviceAndSwapChain: d3d11::PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN =
         unsafe { std::mem::transmute(proc) };
 
-    unsafe {
+    let result = unsafe {
         orig_D3D11CreateDeviceAndSwapChain(
             pAdapter,
             DriverType,
@@ -133,5 +162,24 @@ pub unsafe extern "system" fn D3D11CreateDeviceAndSwapChain(
             pFeatureLevel,
             ppImmediateContext,
         )
+    };
+
+    if result >= 0 {
+        unsafe {
+            let device = if ppDevice.is_null() {
+                std::ptr::null_mut()
+            } else {
+                *ppDevice
+            };
+            let context = if ppImmediateContext.is_null() {
+                std::ptr::null_mut()
+            } else {
+                *ppImmediateContext
+            };
+
+            hooks::device_create(device, context);
+        };
     }
+
+    result
 }
