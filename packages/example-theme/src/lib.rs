@@ -1,4 +1,7 @@
-use erebus_theme::{Background, Hsla, Quad, Theme, Version};
+use erebus_theme::{
+    Theme, Version,
+    primitives::{Background, Hsla, Quad},
+};
 
 struct Example;
 
@@ -9,7 +12,7 @@ impl Theme for Example {
     const VERSION: Version = Version::new(1, 0, 0);
 
     fn init(_settings: ()) -> Self {
-        Example {}   
+        Example {}
     }
 
     fn quad(&mut self, quad: &mut Quad) {

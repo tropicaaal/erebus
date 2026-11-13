@@ -4,6 +4,8 @@ resolver = "2"
 
 [workspace.dependencies]
 wasmtime = "50.0.1"
+postcard = "1.1.3"
 log = "0.4"
+erebus-primitives = { path = "./packages/erebus-primitives", version = "0.1.0" }
 erebus-engine = { path = "./packages/erebus-engine", version = "0.1.0" }
 erebus-theme = { path = "./packages/erebus-theme", version = "0.1.0" }

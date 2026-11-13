@@ -1,14 +1,13 @@
 #[doc(hidden)]
 pub mod abi;
-mod primitives;
 
-pub use primitives::{
-    AtlasTextureId, AtlasTextureKind, AtlasTile, Background, BackgroundTag, BorderStyle, Bounds,
-    ColorSpace, ContentMask, Corners, DeviceBounds, DevicePoint, DeviceSize, Edges, Hsla,
-    LinearColorStop, MonochromeSprite, PaddedBool32, Point, PolychromeSprite, Quad, Shadow, Size,
-    SubpixelSprite, TileId, TransformationMatrix, Underline,
+pub mod primitives {
+    pub use erebus_primitives::*;
+}
+
+use erebus_primitives::{
+    MonochromeSprite, PolychromeSprite, Quad, Shadow, SubpixelSprite, Underline,
 };
-
 pub use semver::Version;
 
 pub trait Theme {
@@ -37,7 +36,7 @@ macro_rules! export_theme {
 
                 // SAFETY: the host is calling us with the block it just filled
                 unsafe {
-                    $crate::abi::apply::<$crate::$primitive>(ptr, len, |item| {
+                    $crate::abi::apply::<$crate::primitives::$primitive>(ptr, len, |item| {
                         $crate::Theme::$method(&mut theme, item)
                     }) as _
                 }

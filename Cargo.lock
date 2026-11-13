@@ -412,15 +412,20 @@ dependencies = [
 name = "erebus-engine"
 version = "0.1.0"
 dependencies = [
- "erebus-theme",
+ "erebus-primitives",
  "log",
  "wasmtime",
 ]
 
 [[package]]
+name = "erebus-primitives"
+version = "0.1.0"
+
+[[package]]
 name = "erebus-theme"
 version = "0.1.0"
 dependencies = [
+ "erebus-primitives",
  "semver",
 ]
 
@@ -429,7 +434,7 @@ name = "erebus-vulkan"
 version = "0.1.0"
 dependencies = [
  "erebus-engine",
- "erebus-theme",
+ "erebus-primitives",
  "fxhash",
  "log",
 ]
