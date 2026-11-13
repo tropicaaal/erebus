@@ -46,22 +46,28 @@ erebus intercepts these low-level graphics APIs and passes these `Scene` primiti
   <img alt="Diagram showing the process that erebus intercepts calls from a graphcis API. From left to right: GPUI's Renderer implementation, Graphics API, Erebus, GPU" src="assets/diagram-light.png">
 </picture>
 
-This effectively makes a "theme" a visitor that runs over every drawing primitive, makes the necessary modifications, then returns. Pretty cool!
+## Theme Format
+
+Themes are sandboxed [WebAssembly binaries](https://en.wikipedia.org/wiki/WebAssembly) running in the [`wasmtime`](https://wasmtime.dev/) runtime. A theme exports a set of functions for modifying paint primitives which is then called by the host erebus backend. The high-level Rust API currently looks like this:
 
 ```rs
-// example theme that turns every quad black and all text magenta
-struct ExampleTheme;
+struct TestTheme;
 
-impl Theme for ExampleTheme {
+impl Theme for TestTheme {
+    const NAME: &str = "example";
+    const AUTHOR: &str = "tropical";
+    const DESCRIPTION: &str = "meow";
+    const VERSION: Version = Version::new(1, 0, 0);
+
     fn quad(&mut self, quad: &mut Quad) {
-        quad.background = Background::solid(Hsla::from_rgba(0, 0, 0, 255));
-    }
-
-    fn subpixel_sprite(&mut self, sprite: &mut SubpixelSprite) {
-        sprite.color = Hsla::from_rgb(255, 0, 255);
+        quad.background = Background::solid(Hsla::from_rgb(0, 0, 0));
     }
 }
+
+erebus_theme::export_theme!(TestTheme);
 ```
+
+`erebus` also technically supports writing themes in other languages like C through a lower-level theme ABI.
 
 ## Try It
 
