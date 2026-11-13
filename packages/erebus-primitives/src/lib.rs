@@ -12,8 +12,10 @@
 //
 // <https://github.com/zed-industries/zed/blob/main/LICENSE-APACHE>
 
+use serde::{Deserialize, Serialize};
+
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Hsla {
     pub h: f32,
     pub s: f32,
@@ -118,7 +120,7 @@ impl From<Rgba> for Hsla {
 }
 
 /// An RGBA color
-#[derive(PartialEq, Clone, Copy, Default)]
+#[derive(PartialEq, Clone, Copy, Default, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Rgba {
     /// The red component of the color, in the range 0.0 to 1.0
@@ -190,34 +192,34 @@ impl From<Rgba> for u32 {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Size {
     pub width: f32,
     pub height: f32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Bounds {
     pub origin: Point,
     pub size: Size,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ContentMask {
     pub bounds: Bounds,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Corners {
     pub top_left: f32,
     pub top_right: f32,
@@ -226,7 +228,7 @@ pub struct Corners {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Edges {
     pub top: f32,
     pub right: f32,
@@ -235,7 +237,7 @@ pub struct Edges {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BackgroundTag(pub u32);
 impl BackgroundTag {
     pub const SOLID: Self = Self(0);
@@ -245,7 +247,7 @@ impl BackgroundTag {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ColorSpace(pub u32);
 impl ColorSpace {
     pub const SRGB: Self = Self(0);
@@ -253,7 +255,7 @@ impl ColorSpace {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BorderStyle(pub u32);
 impl BorderStyle {
     pub const SOLID: Self = Self(0);
@@ -261,14 +263,14 @@ impl BorderStyle {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct LinearColorStop {
     pub color: Hsla,
     pub percentage: f32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Background {
     pub tag: BackgroundTag,
     pub color_space: ColorSpace,
@@ -308,7 +310,7 @@ impl Background {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaddedBool32(pub u32);
 
 impl PaddedBool32 {
@@ -327,28 +329,28 @@ impl From<bool> for PaddedBool32 {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevicePoint {
     pub x: i32,
     pub y: i32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceSize {
     pub width: i32,
     pub height: i32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceBounds {
     pub origin: DevicePoint,
     pub size: DeviceSize,
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtlasTextureKind(pub u32);
 impl AtlasTextureKind {
     pub const MONOCHROME: Self = Self(0);
@@ -357,18 +359,18 @@ impl AtlasTextureKind {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtlasTextureId {
     pub index: u32,
     pub kind: AtlasTextureKind,
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TileId(pub u32);
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtlasTile {
     pub texture_id: AtlasTextureId,
     pub tile_id: TileId,
@@ -377,7 +379,7 @@ pub struct AtlasTile {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TransformationMatrix {
     pub rotation_scale: [[f32; 2]; 2],
     pub translation: [f32; 2],
@@ -399,7 +401,7 @@ impl Default for TransformationMatrix {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct PolychromeSprite {
     pub order: u32,
     pub pad: u32,
@@ -412,7 +414,7 @@ pub struct PolychromeSprite {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SubpixelSprite {
     pub order: u32,
     /// align to 8 bytes
@@ -425,7 +427,7 @@ pub struct SubpixelSprite {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MonochromeSprite {
     pub order: u32,
     pub pad: u32,
@@ -437,7 +439,7 @@ pub struct MonochromeSprite {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Shadow {
     pub order: u32,
     pub blur_radius: f32,
@@ -453,7 +455,7 @@ pub struct Shadow {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Underline {
     pub order: u32,
     pub pad: u32, // align to 8 bytes
@@ -465,7 +467,7 @@ pub struct Underline {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Quad {
     pub order: u32,
     pub border_style: BorderStyle,
