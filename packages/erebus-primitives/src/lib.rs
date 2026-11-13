@@ -12,8 +12,6 @@
 //
 // <https://github.com/zed-industries/zed/blob/main/LICENSE-APACHE>
 
-#![no_std]
-
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Hsla {
@@ -78,6 +76,116 @@ impl Hsla {
             && (self.s - other.s).abs() < EPSILON
             && (self.l - other.l).abs() < EPSILON
             && (self.a - other.a).abs() < EPSILON
+    }
+}
+
+impl From<Rgba> for Hsla {
+    fn from(color: Rgba) -> Self {
+        let r = color.r;
+        let g = color.g;
+        let b = color.b;
+
+        let max = r.max(g.max(b));
+        let min = r.min(g.min(b));
+        let delta = max - min;
+
+        let l = (max + min) / 2.0;
+        let s = if l == 0.0 || l == 1.0 {
+            0.0
+        } else if l < 0.5 {
+            delta / (2.0 * l)
+        } else {
+            delta / (2.0 - 2.0 * l)
+        };
+
+        let h = if delta == 0.0 {
+            0.0
+        } else if max == r {
+            ((g - b) / delta).rem_euclid(6.0) / 6.0
+        } else if max == g {
+            ((b - r) / delta + 2.0) / 6.0
+        } else {
+            ((r - g) / delta + 4.0) / 6.0
+        };
+
+        Hsla {
+            h,
+            s,
+            l,
+            a: color.a,
+        }
+    }
+}
+
+/// An RGBA color
+#[derive(PartialEq, Clone, Copy, Default)]
+#[repr(C)]
+pub struct Rgba {
+    /// The red component of the color, in the range 0.0 to 1.0
+    pub r: f32,
+    /// The green component of the color, in the range 0.0 to 1.0
+    pub g: f32,
+    /// The blue component of the color, in the range 0.0 to 1.0
+    pub b: f32,
+    /// The alpha component of the color, in the range 0.0 to 1.0
+    pub a: f32,
+}
+
+impl Rgba {
+    /// Create a new [`Rgba`] color by blending this and another color together
+    pub fn blend(&self, other: Rgba) -> Self {
+        if other.a >= 1.0 {
+            other
+        } else if other.a <= 0.0 {
+            *self
+        } else {
+            Rgba {
+                r: (self.r * (1.0 - other.a)) + (other.r * other.a),
+                g: (self.g * (1.0 - other.a)) + (other.g * other.a),
+                b: (self.b * (1.0 - other.a)) + (other.b * other.a),
+                a: self.a,
+            }
+        }
+    }
+}
+
+impl From<Hsla> for Rgba {
+    fn from(color: Hsla) -> Self {
+        let h = color.h;
+        let s = color.s;
+        let l = color.l;
+
+        let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+        let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
+        let m = l - c / 2.0;
+        let cm = c + m;
+        let xm = x + m;
+
+        let (r, g, b) = match (h * 6.0).floor() as i32 {
+            0 | 6 => (cm, xm, m),
+            1 => (xm, cm, m),
+            2 => (m, cm, xm),
+            3 => (m, xm, cm),
+            4 => (xm, m, cm),
+            _ => (cm, m, xm),
+        };
+
+        Rgba {
+            r: r.clamp(0., 1.),
+            g: g.clamp(0., 1.),
+            b: b.clamp(0., 1.),
+            a: color.a,
+        }
+    }
+}
+
+impl From<Rgba> for u32 {
+    fn from(rgba: Rgba) -> Self {
+        let r = (rgba.r * 255.0) as u32;
+        let g = (rgba.g * 255.0) as u32;
+        let b = (rgba.b * 255.0) as u32;
+        let a = (rgba.a * 255.0) as u32;
+        (r << 24) | (g << 16) | (b << 8) | a
     }
 }
 
