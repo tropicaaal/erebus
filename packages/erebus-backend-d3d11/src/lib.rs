@@ -7,14 +7,10 @@ pub mod shadow;
 pub mod vtable;
 
 use std::{
-    ffi::{CStr, c_void},
-    sync::OnceLock,
+    ffi::{CStr, c_void}, sync::{LazyLock, OnceLock},
 };
 
-use erebus_core::{
-    scene::{Background, Hsla, MonochromeSprite, Quad, SubpixelSprite},
-    theme::Theme,
-};
+use erebus_engine::{ThemeCtx, ThemeModule};
 use windows_sys::{
     Win32::{
         Foundation::{E_FAIL, FARPROC, HMODULE},
@@ -26,26 +22,32 @@ use windows_sys::{
     core::HRESULT,
 };
 
-// example theme that turns every quad black and all text magenta
-struct ExampleTheme;
-
-impl Theme for ExampleTheme {
-    fn quad(&mut self, quad: &mut Quad) {
-        quad.background = Background::solid(Hsla::from_rgba(0, 0, 0, 255));
-        quad.border_color = erebus_core::scene::Hsla::from_rgb(255, 0, 255);
-    }
-
-    fn monochrome_sprite(&mut self, sprite: &mut MonochromeSprite) {
-        sprite.color = Hsla::from_rgb(255, 0, 255);
-    }
-
-    fn subpixel_sprite(&mut self, sprite: &mut SubpixelSprite) {
-        sprite.color = Hsla::from_rgb(255, 0, 255);
-    }
-}
-
 /// stores HMODULE cast to usize because rust doesn't like raw pointers in statics
 static ORIGINAL_D3D11: OnceLock<usize> = OnceLock::new();
+
+/// This is the compiled theme.
+static THEME_MODULE: LazyLock<Option<ThemeModule>> = LazyLock::new(|| {
+    let path = std::env::var_os("EREBUS_THEME")?;
+
+    match ThemeModule::from_file(&path) {
+        Ok(module) => Some(module),
+        Err(err) => {
+            log::error!("failed to load theme {path:?}: {err}");
+            None
+        }
+    }
+});
+
+/// Instantiate the theme.
+fn new_theme_ctx() -> Option<ThemeCtx> {
+    match THEME_MODULE.as_ref()?.instantiate() {
+        Ok(ctx) => Some(ctx),
+        Err(err) => {
+            log::error!("failed to instantiate theme: {err}");
+            None
+        }
+    }
+}
 
 fn find_orig_proc(name: &CStr) -> FARPROC {
     // LoadLibrary from system32 so we don't load ourselves

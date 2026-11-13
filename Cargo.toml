@@ -3,4 +3,7 @@ members = ["packages/*"]
 resolver = "2"
 
 [workspace.dependencies]
-erebus-core = { path = "./packages/erebus-core", version = "0.1.0" }
+wasmtime = "50.0.1"
+log = "0.4"
+erebus-engine = { path = "./packages/erebus-engine", version = "0.1.0" }
+erebus-theme = { path = "./packages/erebus-theme", version = "0.1.0" }

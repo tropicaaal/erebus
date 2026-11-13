@@ -31,6 +31,15 @@ pub unsafe fn device_create(_device: *mut core::ffi::c_void, context: *mut core:
     let mut guard = tracked();
     let state = guard.as_mut().unwrap();
 
+    // Try to instantiate the theme, if we can't do that then we don't
+    // track this device at all.
+    if state.theme.is_none() {
+        let Some(ctx) = crate::new_theme_ctx() else {
+            return;
+        };
+        state.theme = Some(ctx);
+    }
+
     let hash_map::Entry::Vacant(entry) = state.originals.entry(vtable.addr()) else {
         return;
     };
@@ -137,17 +146,17 @@ unsafe extern "system" fn Unmap(this: *mut c_void, resource: *mut c_void, subres
 
     if subresource == 0 {
         let mut guard = tracked();
-        if let Some(shadow) = guard
-            .as_mut()
-            .unwrap()
-            .shadows
-            .get_mut(&(resource as usize))
-        {
+        let state = guard.as_mut().unwrap();
+
+        if let (Some(shadow), Some(theme)) = (
+            state.shadows.get_mut(&(resource as usize)),
+            state.theme.as_mut(),
+        ) {
             if !shadow.real_mapping_addr.is_null() {
                 let real = std::mem::replace(&mut shadow.real_mapping_addr, core::ptr::null_mut());
                 let stride = shadow.stride;
 
-                _ = unsafe { shadow.buffer.flush(stride, &mut crate::ExampleTheme, real) };
+                _ = unsafe { shadow.buffer.flush(stride, theme, real) };
             }
         }
     }

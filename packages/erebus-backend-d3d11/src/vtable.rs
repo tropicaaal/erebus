@@ -4,6 +4,7 @@ use std::ffi::c_void;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
+use erebus_engine::ThemeCtx;
 use fxhash::FxHashMap;
 use windows_sys::core::HRESULT;
 
@@ -67,6 +68,9 @@ pub struct Tracked {
 
     /// keyed by ID3D11Resource*
     pub shadows: FxHashMap<usize, TrackedShadow>,
+
+    /// The loaded theme.
+    pub theme: Option<ThemeCtx>,
 }
 unsafe impl Send for Tracked {}
 
@@ -78,6 +82,7 @@ pub fn tracked() -> MutexGuard<'static, Option<Tracked>> {
     guard.get_or_insert_with(|| Tracked {
         originals: FxHashMap::default(),
         shadows: FxHashMap::default(),
+        theme: None,
     });
 
     guard

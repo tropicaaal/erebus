@@ -13,8 +13,7 @@
 use std::ffi::CStr;
 use std::mem::transmute;
 
-use crate::ExampleTheme;
-use crate::layer::vk::{PFN_vkVoidFunction, VkNegotiateLayerInterface};
+use crate::vk::{PFN_vkVoidFunction, VkNegotiateLayerInterface};
 
 use super::{
     BufferBinding, Device, DeviceDispatch, DispatchKey, Instance, MappedMemory, cast_pfn,
@@ -267,12 +266,17 @@ pub unsafe extern "system" fn vkCreateDevice(
             let device = *pDevice;
             let dispatch = DeviceDispatch::load(next_vkGetDeviceProcAddr, device);
 
+            // instantiate before taking the registry's write lock: loading and compiling the
+            // theme on first use is slow and would stall every hook in the meantime.
+            let ctx = Device::new_theme_ctx();
+
             devices_mut().insert(
                 DispatchKey::from_raw_handle(device),
                 Device {
                     handle: device,
                     dispatch,
                     tracked: Default::default(),
+                    ctx,
                 },
             );
         }
@@ -456,7 +460,6 @@ pub unsafe extern "system" fn vkCmdCopyBuffer(
                 let regions = std::slice::from_raw_parts(pRegions, regionCount as usize);
 
                 device.apply_theme_to_regions(
-                    &mut ExampleTheme {},
                     srcBuffer,
                     regions.iter().map(|region| (region.srcOffset, region.size)),
                 );
@@ -479,7 +482,6 @@ pub unsafe extern "system" fn vkCmdCopyBuffer2(
             if info.regionCount > 0 {
                 let regions = std::slice::from_raw_parts(info.pRegions, info.regionCount as usize);
                 device.apply_theme_to_regions(
-                    &mut ExampleTheme {},
                     info.srcBuffer,
                     regions.iter().map(|region| (region.srcOffset, region.size)),
                 );

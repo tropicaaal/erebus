@@ -4,6 +4,8 @@
 //! - <https://docs.vulkan.org/guide/latest/layers.html>
 //! - <https://renderdoc.org/vulkan-layer-guide.html>
 
+#![allow(non_snake_case)]
+
 pub mod hooks;
 pub mod vk;
 
@@ -14,7 +16,7 @@ use std::{
     sync::{LazyLock, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use erebus_core::{scene, theme::Theme};
+use erebus_engine::{ThemeCtx, ThemeModule};
 
 use fxhash::FxHashMap;
 use vk::{
@@ -142,6 +144,12 @@ struct Device {
 
     /// tracked buffers and mapped memory for this VkDevice
     tracked: Mutex<DeviceTracked>,
+
+    /// The wasm theme instance for this device, or `None` if no theme is configured (or it
+    /// failed to load), in which case the layer just passes everything through.
+    ///
+    /// Behind a mutex because the hooks only get `&Device`, and running the theme needs `&mut`.
+    ctx: Option<Mutex<ThemeCtx>>,
 }
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
@@ -210,17 +218,45 @@ fn compute_flush_range(
     (offset, size)
 }
 
+/// This is the compiled theme.
+static THEME_MODULE: LazyLock<Option<ThemeModule>> = LazyLock::new(|| {
+    let path = std::env::var_os("EREBUS_THEME")?;
+
+    match ThemeModule::from_file(&path) {
+        Ok(module) => Some(module),
+        Err(err) => {
+            log::error!("failed to load theme {path:?}: {err}");
+            None
+        }
+    }
+});
+
 impl Device {
+    /// Instantiates the configured theme for a new device, if there is one.
+    fn new_theme_ctx() -> Option<Mutex<ThemeCtx>> {
+        match THEME_MODULE.as_ref()?.instantiate() {
+            Ok(ctx) => Some(Mutex::new(ctx)),
+            Err(err) => {
+                log::error!("failed to instantiate theme: {err}");
+                None
+            }
+        }
+    }
+
     fn tracked(&self) -> MutexGuard<'_, DeviceTracked> {
         self.tracked.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     unsafe fn apply_theme_to_regions(
         &self,
-        theme: &mut impl Theme,
         buffer: VkBuffer,
         regions: impl Iterator<Item = (VkDeviceSize, VkDeviceSize)>,
     ) {
+        let Some(ctx) = &self.ctx else {
+            // no theme loaded
+            return;
+        };
+
         let tracked = self.tracked();
 
         // the buffer must be bound to VkDeviceMemory on the GPU
@@ -231,6 +267,10 @@ impl Device {
         let Some(mapping) = tracked.mapped.get(&binding.memory) else {
             return;
         };
+
+        // only take the theme lock once we know there's something mapped to theme, so copies
+        // we don't care about (most of them) never contend on it.
+        let mut theme = ctx.lock().unwrap_or_else(PoisonError::into_inner);
 
         // allocation-relative span of bytes that the theme modified
         let mut dirty: Option<Range<VkDeviceSize>> = None;
@@ -264,7 +304,7 @@ impl Device {
             // now we try and identify the memory as an array of one of GPUI's primitives
             // and run the theme over every element.
             let bytes = unsafe { std::slice::from_raw_parts_mut(ptr, size as usize) };
-            if scene::apply_theme(bytes, theme) == Some(true) {
+            if theme.apply(bytes) == Some(true) {
                 // if we modified bytes, update the region of memory we've modified and might need to flush
                 dirty = Some(match dirty {
                     Some(Range {
