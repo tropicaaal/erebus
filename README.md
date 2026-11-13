@@ -77,7 +77,7 @@ First, compile the example theme.
 cargo build -p example-theme --target=wasm32-unknown-unknown --release
 ```
 
-This will give you a theme file in `target/wasm32-unknown-unknown/release/test_theme.wasm`.
+This will give you a theme file in `target/wasm32-unknown-unknown/release/example_theme.wasm`.
 
 ### Linux
 
@@ -101,7 +101,7 @@ First, make a copy of `C:\Windows\System32\d3d11.dll` named `d3d11_orig.dll` and
 After that, build erebus with this command:
 
 ```sh
-cargo build -p erebus-vulkan --release
+cargo build -p erebus-d3d11 --release
 ```
 
 This will generate a `d3d11.dll` file in `target/release/`, which you should also move to the same folder as your executable. Your final folder layout should contain your executable, `d3d11_orig.dll`, and the `d3d11.dll` that erebus built. You can then launch the executable with the `EREBUS_THEME` environment variable pointing to a theme binary.

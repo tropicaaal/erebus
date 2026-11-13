@@ -1,3 +1,8 @@
+//! Shared functionality between different erebus backends.
+//!
+//! This crate mostly concerns loading and executing theme files, as well as
+//! scanning memory to identify which primitive is in the upload buffer.
+
 mod primitive_detection;
 
 use std::path::Path;
