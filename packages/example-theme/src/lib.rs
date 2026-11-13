@@ -1,15 +1,15 @@
 use erebus_theme::{Background, Hsla, Quad, Theme, Version};
 
-struct TestTheme;
+struct Example;
 
-impl Theme for TestTheme {
+impl Theme for Example {
     const NAME: &str = "example";
     const AUTHOR: &str = "tropical";
     const DESCRIPTION: &str = "meow";
     const VERSION: Version = Version::new(1, 0, 0);
 
     fn init(_settings: ()) -> Self {
-        TestTheme {}   
+        Example {}   
     }
 
     fn quad(&mut self, quad: &mut Quad) {
@@ -17,4 +17,4 @@ impl Theme for TestTheme {
     }
 }
 
-erebus_theme::export_theme!(TestTheme);
+erebus_theme::export_theme!(Example);

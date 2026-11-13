@@ -71,6 +71,14 @@ erebus_theme::export_theme!(TestTheme);
 
 ## Try It
 
+First, compile the example theme.
+
+```sh
+cargo build -p example-theme --target=wasm32-unknown-unknown --release
+```
+
+This will give you a theme file in `target/wasm32-unknown-unknown/release/test_theme.wasm`.
+
 ### Linux
 
 > [!IMPORTANT]
@@ -80,7 +88,7 @@ The example below injects into `zed` and should color everything black. You shou
 
 ```sh
 cargo build -p erebus-vulkan --release
-VK_LAYER_PATH=. VK_INSTANCE_LAYERS=VK_LAYER_erebus zed
+VK_LAYER_PATH=. VK_INSTANCE_LAYERS=VK_LAYER_erebus EREBUS_THEME=./target/wasm32-unknown-unknown/release/test_theme.wasm zed
 ```
 
 ### Windows
@@ -96,7 +104,7 @@ After that, build erebus with this command:
 cargo build -p erebus-vulkan --release
 ```
 
-This will generate a `d3d11.dll` file in `target/release/`, which you should also move to the same folder as your executable. Your final folder layout should contain your executable, `d3d11_orig.dll`, and the `d3d11.dll` that erebus built. You can then launch the executable.
+This will generate a `d3d11.dll` file in `target/release/`, which you should also move to the same folder as your executable. Your final folder layout should contain your executable, `d3d11_orig.dll`, and the `d3d11.dll` that erebus built. You can then launch the executable with the `EREBUS_THEME` environment variable pointing to a theme binary.
 
 ## Caveats
 
