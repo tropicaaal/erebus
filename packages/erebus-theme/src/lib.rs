@@ -45,6 +45,12 @@ pub struct Manifest {
     pub settings: &'static [SettingsField],
 }
 
+/// Owned version of [`Manifest`] that can be deserialized.
+/// 
+/// [`Manifest`] must be constructable in const-contexts which means we're forced
+/// to use static slices and whatnot rather than Vec/String. This version of the type
+/// is one with owned variants of those fields so it can support serde::Deserialize
+/// to decode the manifest from a running theme.
 #[derive(Clone, Debug, PartialEq, serde::Deserialize)]
 pub struct OwnedManifest {
     pub name: String,
