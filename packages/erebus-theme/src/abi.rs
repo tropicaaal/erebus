@@ -34,6 +34,7 @@ pub fn with_theme<T: Theme, R>(
         let theme = theme.get_or_insert_with(|| {
             T::init(&Settings::resolve(T::MANIFEST.settings, &HashMap::new()))
         });
+
         f(theme)
     })
 }
@@ -61,7 +62,7 @@ pub unsafe fn init<T: Theme>(
     instance: &'static LocalKey<RefCell<Option<T>>>,
     ptr: u32,
     len: u32,
-) -> u32 {
+) {
     let bytes: &[u8] = if ptr == 0 || len == 0 {
         &[]
     } else {
@@ -73,14 +74,12 @@ pub unsafe fn init<T: Theme>(
     } else {
         match postcard::from_bytes::<HashMap<String, SettingValue>>(bytes) {
             Ok(values) => values,
-            Err(_) => return 1,
+            Err(_) => return // might be worth returning a status code in the future
         }
     };
 
     let settings = Settings::resolve(T::MANIFEST.settings, &values);
     instance.with_borrow_mut(|theme| *theme = Some(T::init(&settings)));
-
-    0
 }
 
 pub unsafe fn apply<T: Primitive>(ptr: u32, len: u32, mut f: impl FnMut(&mut T)) -> bool {
