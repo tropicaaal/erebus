@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-erebus-theme = { workspace = true }
+erebus-primitives = { workspace = true }
 erebus-engine = { workspace = true }
 fxhash = "0.2.1"
 log = "0.4"

@@ -119,6 +119,35 @@ impl ThemeCtx {
         })
     }
 
+    pub fn init_with_default_settings(&mut self) -> Result<()> {
+        let abi_version = self
+            .instance
+            .get_typed_func::<(), u32>(&mut self.store, "abi_version")
+            .map_err(|err| {
+                format_err!(
+                    "theme does not export a usable `abi_version` \
+                     (was it built against an older erebus-theme?): {err}"
+                )
+            })?;
+
+        self.store.set_fuel(self.fuel_per_call)?;
+        let version = abi_version.call(&mut self.store, ())?;
+        ensure!(
+            version == erebus_theme::abi::ABI_VERSION,
+            "theme was built for ABI version {version}, but this backend supports version {}",
+            erebus_theme::abi::ABI_VERSION
+        );
+
+        let init = self
+            .instance
+            .get_typed_func::<(u32, u32), ()>(&mut self.store, "init")?;
+
+        self.store.set_fuel(self.fuel_per_call)?;
+        init.call(&mut self.store, (0, 0))?;
+
+        Ok(())
+    }
+
     /// Returns `true` if the module failed and was disabled.
     pub fn is_disabled(&self) -> bool {
         self.disabled

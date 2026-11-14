@@ -12,8 +12,10 @@
 //
 // <https://github.com/zed-industries/zed/blob/main/LICENSE-APACHE>
 
+use serde::{Deserialize, Serialize};
+
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Hsla {
     pub h: f32,
     pub s: f32,
@@ -34,11 +36,16 @@ impl Hsla {
     }
 
     pub const fn from_rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
-        let r = r as f32 / 255.0;
-        let g = g as f32 / 255.0;
-        let b = b as f32 / 255.0;
-        let a = a as f32 / 255.0;
+        Self::from_rgba_f32(
+            r as f32 / 255.0,
+            g as f32 / 255.0,
+            b as f32 / 255.0,
+            a as f32 / 255.0,
+        )
+    }
 
+    /// Converts straight sRGB components in `0.0..=1.0` to HSLA.
+    pub const fn from_rgba_f32(r: f32, g: f32, b: f32, a: f32) -> Self {
         let max = r.max(g).max(b);
         let min = r.min(g).min(b);
         let delta = max - min;
@@ -74,35 +81,160 @@ impl Hsla {
     }
 }
 
+impl From<Rgba> for Hsla {
+    fn from(color: Rgba) -> Self {
+        let r = color.r;
+        let g = color.g;
+        let b = color.b;
+
+        let max = r.max(g.max(b));
+        let min = r.min(g.min(b));
+        let delta = max - min;
+
+        let l = (max + min) / 2.0;
+        let s = if l == 0.0 || l == 1.0 {
+            0.0
+        } else if l < 0.5 {
+            delta / (2.0 * l)
+        } else {
+            delta / (2.0 - 2.0 * l)
+        };
+
+        let h = if delta == 0.0 {
+            0.0
+        } else if max == r {
+            ((g - b) / delta).rem_euclid(6.0) / 6.0
+        } else if max == g {
+            ((b - r) / delta + 2.0) / 6.0
+        } else {
+            ((r - g) / delta + 4.0) / 6.0
+        };
+
+        Hsla {
+            h,
+            s,
+            l,
+            a: color.a,
+        }
+    }
+}
+
+/// An RGBA color
+#[derive(PartialEq, Clone, Copy, Default, Serialize, Deserialize)]
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Rgba {
+    /// The red component of the color, in the range 0.0 to 1.0
+    pub r: f32,
+    /// The green component of the color, in the range 0.0 to 1.0
+    pub g: f32,
+    /// The blue component of the color, in the range 0.0 to 1.0
+    pub b: f32,
+    /// The alpha component of the color, in the range 0.0 to 1.0
+    pub a: f32,
+}
+
+impl core::fmt::Debug for Rgba {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "rgba({:#010x})", u32::from(*self))
+    }
+}
+
+impl Rgba {
+    /// Create a new [`Rgba`] color by blending this and another color together
+    pub fn blend(&self, other: Rgba) -> Self {
+        if other.a >= 1.0 {
+            other
+        } else if other.a <= 0.0 {
+            *self
+        } else {
+            Rgba {
+                r: (self.r * (1.0 - other.a)) + (other.r * other.a),
+                g: (self.g * (1.0 - other.a)) + (other.g * other.a),
+                b: (self.b * (1.0 - other.a)) + (other.b * other.a),
+                a: self.a,
+            }
+        }
+    }
+
+    pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
+        Self {
+            r: (r as f32) / 255.0,
+            g: (g as f32) / 255.0,
+            b: (b as f32) / 255.0,
+            a: 1.0,
+        }
+    }
+}
+
+impl From<Hsla> for Rgba {
+    fn from(color: Hsla) -> Self {
+        let h = color.h;
+        let s = color.s;
+        let l = color.l;
+
+        let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+        let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
+        let m = l - c / 2.0;
+        let cm = c + m;
+        let xm = x + m;
+
+        let (r, g, b) = match (h * 6.0).floor() as i32 {
+            0 | 6 => (cm, xm, m),
+            1 => (xm, cm, m),
+            2 => (m, cm, xm),
+            3 => (m, xm, cm),
+            4 => (xm, m, cm),
+            _ => (cm, m, xm),
+        };
+
+        Rgba {
+            r: r.clamp(0., 1.),
+            g: g.clamp(0., 1.),
+            b: b.clamp(0., 1.),
+            a: color.a,
+        }
+    }
+}
+
+impl From<Rgba> for u32 {
+    fn from(rgba: Rgba) -> Self {
+        let r = (rgba.r * 255.0) as u32;
+        let g = (rgba.g * 255.0) as u32;
+        let b = (rgba.b * 255.0) as u32;
+        let a = (rgba.a * 255.0) as u32;
+        (r << 24) | (g << 16) | (b << 8) | a
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Size {
     pub width: f32,
     pub height: f32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Bounds {
     pub origin: Point,
     pub size: Size,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ContentMask {
     pub bounds: Bounds,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Corners {
     pub top_left: f32,
     pub top_right: f32,
@@ -111,7 +243,7 @@ pub struct Corners {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Edges {
     pub top: f32,
     pub right: f32,
@@ -120,7 +252,7 @@ pub struct Edges {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BackgroundTag(pub u32);
 impl BackgroundTag {
     pub const SOLID: Self = Self(0);
@@ -130,7 +262,7 @@ impl BackgroundTag {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ColorSpace(pub u32);
 impl ColorSpace {
     pub const SRGB: Self = Self(0);
@@ -138,7 +270,7 @@ impl ColorSpace {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BorderStyle(pub u32);
 impl BorderStyle {
     pub const SOLID: Self = Self(0);
@@ -146,14 +278,14 @@ impl BorderStyle {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct LinearColorStop {
     pub color: Hsla,
     pub percentage: f32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Background {
     pub tag: BackgroundTag,
     pub color_space: ColorSpace,
@@ -193,7 +325,7 @@ impl Background {
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaddedBool32(pub u32);
 
 impl PaddedBool32 {
@@ -212,28 +344,28 @@ impl From<bool> for PaddedBool32 {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevicePoint {
     pub x: i32,
     pub y: i32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceSize {
     pub width: i32,
     pub height: i32,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceBounds {
     pub origin: DevicePoint,
     pub size: DeviceSize,
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtlasTextureKind(pub u32);
 impl AtlasTextureKind {
     pub const MONOCHROME: Self = Self(0);
@@ -242,18 +374,18 @@ impl AtlasTextureKind {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtlasTextureId {
     pub index: u32,
     pub kind: AtlasTextureKind,
 }
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TileId(pub u32);
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AtlasTile {
     pub texture_id: AtlasTextureId,
     pub tile_id: TileId,
@@ -262,7 +394,7 @@ pub struct AtlasTile {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TransformationMatrix {
     pub rotation_scale: [[f32; 2]; 2],
     pub translation: [f32; 2],
@@ -284,7 +416,7 @@ impl Default for TransformationMatrix {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct PolychromeSprite {
     pub order: u32,
     pub pad: u32,
@@ -297,7 +429,7 @@ pub struct PolychromeSprite {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SubpixelSprite {
     pub order: u32,
     /// align to 8 bytes
@@ -310,7 +442,7 @@ pub struct SubpixelSprite {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MonochromeSprite {
     pub order: u32,
     pub pad: u32,
@@ -322,7 +454,7 @@ pub struct MonochromeSprite {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Shadow {
     pub order: u32,
     pub blur_radius: f32,
@@ -338,7 +470,7 @@ pub struct Shadow {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Underline {
     pub order: u32,
     pub pad: u32, // align to 8 bytes
@@ -350,7 +482,7 @@ pub struct Underline {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Quad {
     pub order: u32,
     pub border_style: BorderStyle,

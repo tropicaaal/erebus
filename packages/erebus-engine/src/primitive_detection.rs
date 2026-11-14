@@ -1,6 +1,6 @@
 //! Primitive detection & classification
 
-use erebus_theme::{
+use erebus_primitives::{
     AtlasTextureKind, AtlasTile, Background, BackgroundTag, BorderStyle, Bounds, ColorSpace,
     ContentMask, Corners, Edges, Hsla, MonochromeSprite, PaddedBool32, PolychromeSprite, Quad,
     Shadow, SubpixelSprite, TransformationMatrix, Underline,
