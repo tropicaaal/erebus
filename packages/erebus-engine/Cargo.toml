@@ -6,5 +6,6 @@ edition = "2024"
 [dependencies]
 erebus-primitives = { workspace = true }
 erebus-theme = { workspace = true }
+postcard = { workspace = true }
 wasmtime = "50.0.1"
 log = "0.4"

@@ -1,21 +1,18 @@
-//! Shared functionality between different erebus backends.
-//!
-//! This crate mostly concerns loading and executing theme files, as well as
-//! scanning memory to identify which primitive is in the upload buffer.
+//! Everything related to theme loading and execution by backends.
 
 mod primitive_detection;
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
+
+use erebus_theme::{OwnedManifest, settings::SettingValue};
 
 use wasmtime::{
-    Config, Engine, Instance, Linker, Memory, Module, Result, Store, TypedFunc, ensure, format_err,
+    Config, Engine, Instance, Linker, Memory, Module, Store, TypedFunc, ensure, format_err,
 };
 
-use crate::primitive_detection::PrimitiveKind;
+pub use wasmtime::Result;
 
-//
-// MARK: wasm stuff
-//
+pub use crate::primitive_detection::PrimitiveKind;
 
 const MAX_MAILBOX_CAPACITY: u32 = 4096;
 const DEFAULT_FUEL_PER_CALL: u64 = 100_000_000;
@@ -61,6 +58,27 @@ impl ThemeModule {
     /// Creates a fresh, independent instance of the theme.
     pub fn instantiate(&self) -> Result<ThemeCtx> {
         ThemeCtx::new(self)
+    }
+
+    /// Reads the theme's manifest out of a throwaway instance.
+    pub fn manifest(&self) -> Result<OwnedManifest> {
+        let mut ctx = self.instantiate()?;
+        ctx.check_abi_version()?;
+
+        let manifest = ctx
+            .instance
+            .get_typed_func::<(), u64>(&mut ctx.store, "manifest")?;
+
+        ctx.store.set_fuel(ctx.fuel_per_call)?;
+        let packed = manifest.call(&mut ctx.store, ())?;
+        let (ptr, len) = ((packed >> 32) as u32, packed as u32);
+        ensure!(ptr != 0, "theme failed to serialize its manifest");
+
+        let mut bytes = vec![0; len as usize];
+        ctx.memory.read(&ctx.store, ptr as usize, &mut bytes)?;
+        ctx.dealloc.call(&mut ctx.store, (ptr, len))?;
+
+        Ok(postcard::from_bytes(&bytes)?)
     }
 }
 
@@ -119,7 +137,7 @@ impl ThemeCtx {
         })
     }
 
-    pub fn init_with_default_settings(&mut self) -> Result<()> {
+    fn check_abi_version(&mut self) -> Result<()> {
         let abi_version = self
             .instance
             .get_typed_func::<(), u32>(&mut self.store, "abi_version")
@@ -138,12 +156,24 @@ impl ThemeCtx {
             erebus_theme::abi::ABI_VERSION
         );
 
+        Ok(())
+    }
+
+    /// Initializes the theme with `settings`. Missing or invalid values fall back to defaults.
+    pub fn init(&mut self, settings: &HashMap<String, SettingValue>) -> Result<()> {
+        self.check_abi_version()?;
+
         let init = self
             .instance
             .get_typed_func::<(u32, u32), ()>(&mut self.store, "init")?;
 
+        let bytes = postcard::to_allocvec(settings)?;
+        let len = u32::try_from(bytes.len())?;
+
         self.store.set_fuel(self.fuel_per_call)?;
-        init.call(&mut self.store, (0, 0))?;
+        let ptr = self.reserve(len)?;
+        self.memory.write(&mut self.store, ptr as usize, &bytes)?;
+        init.call(&mut self.store, (ptr, len))?;
 
         Ok(())
     }
@@ -206,13 +236,11 @@ impl ThemeCtx {
         Ok(changed)
     }
 
-    /// Applies the theme to the provided `data` buffer.
-    pub fn apply(&mut self, data: &mut [u8]) -> Option<bool> {
+    /// Applies the theme to `data`, which must be an array of `kind`.
+    pub fn apply(&mut self, kind: PrimitiveKind, data: &mut [u8]) -> Option<bool> {
         if self.disabled {
             return None;
         }
-
-        let kind = PrimitiveKind::classify_bytes(data)?;
 
         match self.run(kind, data) {
             Ok(changed) => Some(changed),

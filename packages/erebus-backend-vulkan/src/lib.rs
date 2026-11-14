@@ -7,6 +7,7 @@
 #![allow(non_snake_case)]
 
 pub mod hooks;
+mod themes;
 pub mod vk;
 
 use std::{
@@ -16,7 +17,7 @@ use std::{
     sync::{LazyLock, Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use erebus_engine::{ThemeCtx, ThemeModule};
+use erebus_engine::PrimitiveKind;
 
 use fxhash::FxHashMap;
 use vk::{
@@ -144,12 +145,6 @@ struct Device {
 
     /// tracked buffers and mapped memory for this VkDevice
     tracked: Mutex<DeviceTracked>,
-
-    /// The wasm theme instance for this device, or `None` if no theme is configured (or it
-    /// failed to load or initialize), in which case the layer just passes everything through.
-    ///
-    /// Behind a mutex because the hooks only get `&Device`, and running the theme needs `&mut`.
-    ctx: Option<Mutex<ThemeCtx>>,
 }
 unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
@@ -218,39 +213,7 @@ fn compute_flush_range(
     (offset, size)
 }
 
-/// This is the compiled theme.
-static THEME_MODULE: LazyLock<Option<ThemeModule>> = LazyLock::new(|| {
-    let path = std::env::var_os("EREBUS_THEME")?;
-
-    match ThemeModule::from_file(&path) {
-        Ok(module) => Some(module),
-        Err(err) => {
-            log::error!("failed to load theme {path:?}: {err}");
-            None
-        }
-    }
-});
-
 impl Device {
-    /// Instantiates and initializes the configured theme for a new device, if there is one.
-    /// The theme is initialized with its default settings for now.
-    fn new_theme_ctx() -> Option<Mutex<ThemeCtx>> {
-        let mut ctx = match THEME_MODULE.as_ref()?.instantiate() {
-            Ok(ctx) => ctx,
-            Err(err) => {
-                log::error!("failed to instantiate theme: {err}");
-                return None;
-            }
-        };
-
-        if let Err(err) = ctx.init_with_default_settings() {
-            log::error!("failed to initialize theme: {err}");
-            return None;
-        }
-
-        Some(Mutex::new(ctx))
-    }
-
     fn tracked(&self) -> MutexGuard<'_, DeviceTracked> {
         self.tracked.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -260,11 +223,6 @@ impl Device {
         buffer: VkBuffer,
         regions: impl Iterator<Item = (VkDeviceSize, VkDeviceSize)>,
     ) {
-        let Some(ctx) = &self.ctx else {
-            // no theme loaded
-            return;
-        };
-
         let tracked = self.tracked();
 
         // the buffer must be bound to VkDeviceMemory on the GPU
@@ -278,7 +236,10 @@ impl Device {
 
         // only take the theme lock once we know there's something mapped to theme, so copies
         // we don't care about (most of them) never contend on it.
-        let mut theme = ctx.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut themes = themes::active_themes();
+        if themes.is_empty() {
+            return;
+        }
 
         // allocation-relative span of bytes that the theme modified
         let mut dirty: Option<Range<VkDeviceSize>> = None;
@@ -312,7 +273,16 @@ impl Device {
             // now we try and identify the memory as an array of one of GPUI's primitives
             // and run the theme over every element.
             let bytes = unsafe { std::slice::from_raw_parts_mut(ptr, size as usize) };
-            if theme.apply(bytes) == Some(true) {
+            let Some(kind) = PrimitiveKind::classify_bytes(bytes) else {
+                continue;
+            };
+
+            let mut changed = false;
+            for theme in themes.iter_mut() {
+                changed |= theme.apply(kind, bytes) == Some(true);
+            }
+
+            if changed {
                 // if we modified bytes, update the region of memory we've modified and might need to flush
                 dirty = Some(match dirty {
                     Some(Range {
