@@ -303,12 +303,9 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Combines `values` with the defaults in `defs`. Drops keys not specified in the schema and
-    /// replaces values that don't fit the schema.
-    ///
-    /// Works from either the theme's `const` schema or a host-decoded one.
-    pub fn resolve(defs: &[SettingsField], values: &HashMap<String, SettingValue>) -> Self {
-        let values = defs
+    /// Merges `values` with the defaults in `defs`. Unrecognized settings will be dropped.
+    pub fn resolve(fields: &[SettingsField], values: &HashMap<String, SettingValue>) -> Self {
+        let values = fields
             .iter()
             .map(|def| {
                 let value = values

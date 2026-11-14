@@ -7,7 +7,8 @@ pub mod shadow;
 pub mod vtable;
 
 use std::{
-    ffi::{CStr, c_void}, sync::{LazyLock, OnceLock},
+    ffi::{CStr, c_void},
+    sync::{LazyLock, OnceLock},
 };
 
 use erebus_engine::{ThemeCtx, ThemeModule};
@@ -40,13 +41,20 @@ static THEME_MODULE: LazyLock<Option<ThemeModule>> = LazyLock::new(|| {
 
 /// Instantiate the theme.
 fn new_theme_ctx() -> Option<ThemeCtx> {
-    match THEME_MODULE.as_ref()?.instantiate() {
-        Ok(ctx) => Some(ctx),
+    let mut ctx = match THEME_MODULE.as_ref()?.instantiate() {
+        Ok(ctx) => ctx,
         Err(err) => {
             log::error!("failed to instantiate theme: {err}");
-            None
+            return None;
         }
+    };
+
+    if let Err(err) = ctx.init_with_default_settings() {
+        log::error!("failed to initialize theme: {err}");
+        return None;
     }
+
+    Some(ctx)
 }
 
 fn find_orig_proc(name: &CStr) -> FARPROC {

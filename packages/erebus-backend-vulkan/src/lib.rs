@@ -146,7 +146,7 @@ struct Device {
     tracked: Mutex<DeviceTracked>,
 
     /// The wasm theme instance for this device, or `None` if no theme is configured (or it
-    /// failed to load), in which case the layer just passes everything through.
+    /// failed to load or initialize), in which case the layer just passes everything through.
     ///
     /// Behind a mutex because the hooks only get `&Device`, and running the theme needs `&mut`.
     ctx: Option<Mutex<ThemeCtx>>,
@@ -232,15 +232,22 @@ static THEME_MODULE: LazyLock<Option<ThemeModule>> = LazyLock::new(|| {
 });
 
 impl Device {
-    /// Instantiates the configured theme for a new device, if there is one.
+    /// Instantiates and initializes the configured theme for a new device, if there is one.
     fn new_theme_ctx() -> Option<Mutex<ThemeCtx>> {
-        match THEME_MODULE.as_ref()?.instantiate() {
-            Ok(ctx) => Some(Mutex::new(ctx)),
+        let mut ctx = match THEME_MODULE.as_ref()?.instantiate() {
+            Ok(ctx) => ctx,
             Err(err) => {
                 log::error!("failed to instantiate theme: {err}");
-                None
+                return None;
             }
+        };
+
+        if let Err(err) = ctx.init_with_default_settings() {
+            log::error!("failed to initialize theme: {err}");
+            return None;
         }
+
+        Some(Mutex::new(ctx))
     }
 
     fn tracked(&self) -> MutexGuard<'_, DeviceTracked> {

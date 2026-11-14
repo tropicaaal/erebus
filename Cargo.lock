@@ -428,6 +428,7 @@ name = "erebus-engine"
 version = "0.1.0"
 dependencies = [
  "erebus-primitives",
+ "erebus-theme",
  "log",
  "wasmtime",
 ]
