@@ -133,6 +133,12 @@ pub struct Rgba {
     pub a: f32,
 }
 
+impl core::fmt::Debug for Rgba {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, "rgba({:#010x})", u32::from(*self))
+    }
+}
+
 impl Rgba {
     /// Create a new [`Rgba`] color by blending this and another color together
     pub fn blend(&self, other: Rgba) -> Self {
@@ -147,6 +153,15 @@ impl Rgba {
                 b: (self.b * (1.0 - other.a)) + (other.b * other.a),
                 a: self.a,
             }
+        }
+    }
+
+    pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
+        Self {
+            r: (r as f32) / 255.0,
+            g: (g as f32) / 255.0,
+            b: (b as f32) / 255.0,
+            a: 1.0,
         }
     }
 }
