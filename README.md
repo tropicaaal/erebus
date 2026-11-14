@@ -3,7 +3,7 @@
 erebus is a proof-of-concept for a theme engine that can style Rust GPUI applications *after compilation* in a non-intrusive and stable [(albeit limited)](#caveats) fashion. It does this by hooking low-level graphics APIs used by GPUI's renderer like Vulkan and D3D11.
 
 <p align="center">
-    <img src="./assets/frontend.png" width="480" />
+    <img src="./assets/demo.png" />
 </p>
 
 ## Why?
