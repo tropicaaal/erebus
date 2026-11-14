@@ -123,6 +123,65 @@ impl SettingsField {
 }
 
 //
+// MARK: owned schema
+//
+// Deserializable versions of the schema types for hosts and frontends to decode
+// from compiled theme binaries. (postcard doesn't like encoding slices which is
+// why this exists).
+//
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct OwnedSettingsField {
+    pub key: String,
+    pub label: String,
+    pub description: String,
+    pub kind: OwnedSettingKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub enum OwnedSettingKind {
+    Bool {
+        default: bool,
+    },
+    Int {
+        default: i64,
+        min: i64,
+        max: i64,
+    },
+    Float {
+        default: f64,
+        min: f64,
+        max: f64,
+        step: f64,
+    },
+    Color {
+        default: Rgba,
+    },
+    Choice {
+        default: String,
+        options: Vec<OwnedChoiceOption>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+pub struct OwnedChoiceOption {
+    pub value: String,
+    pub label: String,
+}
+
+impl OwnedSettingKind {
+    pub fn default_value(&self) -> SettingValue {
+        match self {
+            Self::Bool { default } => SettingValue::Bool(*default),
+            Self::Int { default, .. } => SettingValue::Int(*default),
+            Self::Float { default, .. } => SettingValue::Float(*default),
+            Self::Color { default } => SettingValue::Color(*default),
+            Self::Choice { default, .. } => SettingValue::Choice(default.clone()),
+        }
+    }
+}
+
+//
 // MARK: values
 //
 

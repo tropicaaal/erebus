@@ -12,7 +12,7 @@ pub mod settings;
 
 pub use semver::Version;
 
-use crate::settings::{Settings, SettingsField};
+use crate::settings::{OwnedSettingsField, Settings, SettingsField};
 
 pub trait Theme: Sized + 'static {
     /// The theme's metadata and settings.
@@ -43,6 +43,15 @@ pub struct Manifest {
     pub description: &'static str,
     pub version: Version,
     pub settings: &'static [SettingsField],
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+pub struct OwnedManifest {
+    pub name: String,
+    pub author: String,
+    pub description: String,
+    pub version: Version,
+    pub settings: Vec<OwnedSettingsField>,
 }
 
 #[macro_export]
