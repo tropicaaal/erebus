@@ -3,7 +3,7 @@
 erebus is a proof-of-concept for a theme engine that can style Rust GPUI applications *after compilation* in a non-intrusive and stable [(albeit limited)](#caveats) fashion. It does this by hooking low-level graphics APIs used by GPUI's renderer like Vulkan and D3D11.
 
 <p align="center">
-    <img src="./assets/demo.png" width="480" />
+    <img src="./assets/frontend.png" width="480" />
 </p>
 
 ## Why?
@@ -51,20 +51,27 @@ erebus intercepts these low-level graphics APIs and passes these `Scene` primiti
 Themes are sandboxed [WebAssembly binaries](https://en.wikipedia.org/wiki/WebAssembly) running in the [`wasmtime`](https://wasmtime.dev/) runtime. A theme exports a set of functions for modifying paint primitives which is then called by the host erebus backend. The high-level Rust API currently looks like this:
 
 ```rs
-struct TestTheme;
+struct ThemeThatMakesEverythingBlack;
 
-impl Theme for TestTheme {
-    const NAME: &str = "example";
-    const AUTHOR: &str = "tropical";
-    const DESCRIPTION: &str = "meow";
-    const VERSION: Version = Version::new(1, 0, 0);
+impl Theme for ThemeThatMakesEverythingBlack {
+    const MANIFEST: Manifest = Manifest {
+        name: "My Theme",
+        author: "uwu",
+        description: "meow",
+        version: Version::new(1, 0, 0),
+        settings: &[],
+    };
+
+    fn init(settings: &Settings) -> Self {
+        Self {}
+    }
 
     fn quad(&mut self, quad: &mut Quad) {
-        quad.background = Background::solid(Hsla::from_rgb(0, 0, 0));
+        quad.background = Rgba::from_rgb(0, 0, 0); // make every quad black
     }
 }
 
-erebus_theme::export_theme!(TestTheme);
+erebus_theme::export_theme!(ThemeThatMakesEverythingBlack);
 ```
 
 `erebus` also technically supports writing themes in other languages like C through a lower-level theme ABI.
