@@ -233,6 +233,7 @@ static THEME_MODULE: LazyLock<Option<ThemeModule>> = LazyLock::new(|| {
 
 impl Device {
     /// Instantiates and initializes the configured theme for a new device, if there is one.
+    /// The theme is initialized with its default settings for now.
     fn new_theme_ctx() -> Option<Mutex<ThemeCtx>> {
         let mut ctx = match THEME_MODULE.as_ref()?.instantiate() {
             Ok(ctx) => ctx,

@@ -4,13 +4,13 @@ use erebus_theme::{
     settings::{Settings, SettingsField},
 };
 
-struct Example {
+struct Test {
     background: Hsla,
     recolor_borders: bool,
     border: Hsla,
 }
 
-impl Theme for Example {
+impl Theme for Test {
     const MANIFEST: Manifest = Manifest {
         name: "test",
         author: "tropical",
@@ -40,4 +40,4 @@ impl Theme for Example {
     }
 }
 
-erebus_theme::export_theme!(Example);
+erebus_theme::export_theme!(Test);
