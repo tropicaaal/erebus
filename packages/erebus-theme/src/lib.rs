@@ -12,7 +12,7 @@ pub mod settings;
 
 pub use semver::Version;
 
-use crate::settings::{Settings, SettingsField};
+use crate::settings::{OwnedSettingsField, Settings, SettingsField};
 
 pub trait Theme: Sized + 'static {
     /// The theme's metadata and settings.
@@ -43,6 +43,21 @@ pub struct Manifest {
     pub description: &'static str,
     pub version: Version,
     pub settings: &'static [SettingsField],
+}
+
+/// Owned version of [`Manifest`] that can be deserialized.
+/// 
+/// [`Manifest`] must be constructable in const-contexts which means we're forced
+/// to use static slices and whatnot rather than Vec/String. This version of the type
+/// is one with owned variants of those fields so it can support serde::Deserialize
+/// to decode the manifest from a running theme.
+#[derive(Clone, Debug, PartialEq, serde::Deserialize)]
+pub struct OwnedManifest {
+    pub name: String,
+    pub author: String,
+    pub description: String,
+    pub version: Version,
+    pub settings: Vec<OwnedSettingsField>,
 }
 
 #[macro_export]

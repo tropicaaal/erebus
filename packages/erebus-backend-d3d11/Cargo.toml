@@ -1,5 +1,5 @@
 [package]
-name = "erebus-d3d11"
+name = "erebus-backend-d3d11"
 version = "0.1.0"
 edition = "2024"
 

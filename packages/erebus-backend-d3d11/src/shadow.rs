@@ -16,7 +16,7 @@
 //! [write-combined]: https://en.wikipedia.org/wiki/Write_combining
 
 use erebus_engine::ThemeCtx;
-use erebus_theme::{MonochromeSprite, PolychromeSprite, Quad, Shadow, SubpixelSprite, Underline};
+use erebus_theme::primitives::{MonochromeSprite, PolychromeSprite, Quad, Shadow, SubpixelSprite, Underline};
 
 pub fn is_primitive_stride(stride: usize) -> bool {
     stride != 0
@@ -63,7 +63,7 @@ impl ShadowBuf {
             unsafe { std::slice::from_raw_parts_mut(self.data.as_mut_ptr().cast::<u8>(), used) };
 
         if is_primitive_stride(stride) {
-            _ = theme.apply(bytes);
+            // _ = theme.apply(bytes);
         }
 
         // SAFETY: caller guarantees that for dst, used <= len.

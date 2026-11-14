@@ -7,8 +7,7 @@ pub mod shadow;
 pub mod vtable;
 
 use std::{
-    ffi::{CStr, c_void},
-    sync::{LazyLock, OnceLock},
+    collections::HashMap, ffi::{CStr, c_void}, sync::{LazyLock, OnceLock},
 };
 
 use erebus_engine::{ThemeCtx, ThemeModule};
@@ -49,7 +48,7 @@ fn new_theme_ctx() -> Option<ThemeCtx> {
         }
     };
 
-    if let Err(err) = ctx.init_with_default_settings() {
+    if let Err(err) = ctx.init(&HashMap::new()) {
         log::error!("failed to initialize theme: {err}");
         return None;
     }

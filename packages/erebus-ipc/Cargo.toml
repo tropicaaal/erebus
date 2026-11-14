@@ -1,0 +1,13 @@
+[package]
+name = "erebus-ipc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+erebus-theme = { workspace = true }
+postcard = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+toml = "1.2.1"
+log = { workspace = true, features = ["serde"] }
+interprocess = "2.4"
+dirs = "6"

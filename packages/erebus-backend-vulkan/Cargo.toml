@@ -1,9 +1,10 @@
 [package]
-name = "erebus-vulkan"
+name = "erebus-backend-vulkan"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
+name = "erebus_vulkan"
 crate-type = ["cdylib"]
 
 [dependencies]
@@ -11,3 +12,5 @@ erebus-primitives = { workspace = true }
 erebus-engine = { workspace = true }
 fxhash = "0.2.1"
 log = "0.4"
+erebus-ipc = { workspace = true }
+erebus-theme = { workspace = true }

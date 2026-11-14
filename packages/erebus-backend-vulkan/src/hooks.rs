@@ -17,7 +17,7 @@ use crate::vk::{PFN_vkVoidFunction, VkNegotiateLayerInterface};
 
 use super::{
     BufferBinding, Device, DeviceDispatch, DispatchKey, Instance, MappedMemory, cast_pfn,
-    devices_mut, instances, instances_mut,
+    devices_mut, instances, instances_mut, themes,
 };
 
 use super::vk::{
@@ -47,6 +47,8 @@ pub unsafe extern "system" fn vkNegotiateLoaderLayerInterfaceVersion(
     if pVersionStruct.is_null() {
         return VK_ERROR_INITIALIZATION_FAILED;
     }
+
+    erebus_ipc::backend::init_logging();
 
     let negotiate = unsafe { &mut *pVersionStruct };
 
@@ -266,9 +268,9 @@ pub unsafe extern "system" fn vkCreateDevice(
             let device = *pDevice;
             let dispatch = DeviceDispatch::load(next_vkGetDeviceProcAddr, device);
 
-            // instantiate before taking the registry's write lock: loading and compiling the
-            // theme on first use is slow and would stall every hook in the meantime.
-            let ctx = Device::new_theme_ctx();
+            // before taking the registry's write lock: loading and compiling themes on first
+            // use is slow and would stall every hook in the meantime.
+            themes::start();
 
             devices_mut().insert(
                 DispatchKey::from_raw_handle(device),
@@ -276,7 +278,6 @@ pub unsafe extern "system" fn vkCreateDevice(
                     handle: device,
                     dispatch,
                     tracked: Default::default(),
-                    ctx,
                 },
             );
         }
